@@ -18,6 +18,123 @@ const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
 let state = { streams: {} };
 let activeStreamKey = "bhyt";
 let activeCounterKey = "quay1";
+const AUDIO_CACHE_NAME = "queue-audio-v1";
+const AUDIO_CACHE_PREFIX = "/__audio_cache__/";
+const AUDIO_CACHE_MAX_ENTRIES = 300;
+const pendingAudioCacheJobs = new Map();
+
+function sanitizeCachePart(value) {
+  return encodeURIComponent(String(value ?? "").trim().toLowerCase());
+}
+
+function buildAudioCacheKey(parts) {
+  return parts.map(sanitizeCachePart).join("|");
+}
+
+function getCacheRequestUrl(cacheKey) {
+  return `${AUDIO_CACHE_PREFIX}${cacheKey}`;
+}
+
+function getPredictedAudioNumber(actionType) {
+  const activeStream = getActiveStream();
+  const activeCounter = getActiveCounter();
+  if (!activeStream || !activeCounter) return null;
+
+  if (actionType === "increment") {
+    return Math.max(0, Number(activeStream.nextNumber || 0) + 1);
+  }
+
+  if (actionType === "decrement") {
+    return Math.max(0, Number(activeStream.nextNumber || 0) - 1);
+  }
+
+  return Math.max(0, Number(activeCounter.currentNumber || 0));
+}
+
+async function enforceAudioCacheLimit(cacheStorage) {
+  const keys = await cacheStorage.keys();
+  const overflowCount = keys.length - AUDIO_CACHE_MAX_ENTRIES;
+  if (overflowCount <= 0) return;
+
+  const entriesToDelete = keys.slice(0, overflowCount);
+  await Promise.all(entriesToDelete.map((request) => cacheStorage.delete(request)));
+}
+
+async function getCachedAudioBlob(cacheKey) {
+  if (!cacheKey || !window.caches) return null;
+
+  const cacheStorage = await caches.open(AUDIO_CACHE_NAME);
+  const response = await cacheStorage.match(getCacheRequestUrl(cacheKey));
+  if (!response) return null;
+  return response.blob();
+}
+
+async function rememberAudioBlob(cacheKey, audioBlob) {
+  if (!cacheKey || !audioBlob || !window.caches) return;
+
+  const cacheStorage = await caches.open(AUDIO_CACHE_NAME);
+  await cacheStorage.put(
+    getCacheRequestUrl(cacheKey),
+    new Response(audioBlob, {
+      headers: {
+        "Content-Type": "audio/wav"
+      }
+    })
+  );
+  await enforceAudioCacheLimit(cacheStorage);
+}
+
+async function fetchAudioWithLocalCache({ url, payload, cacheKey }) {
+  if (cacheKey) {
+    const cachedBlob = await getCachedAudioBlob(cacheKey);
+    if (cachedBlob) {
+      return cachedBlob;
+    }
+  }
+
+  if (cacheKey && pendingAudioCacheJobs.has(cacheKey)) {
+    return pendingAudioCacheJobs.get(cacheKey);
+  }
+
+  const requestJob = (async () => {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      let serverMessage = "Yêu cầu TTS thất bại";
+      try {
+        const errorData = await response.json();
+        if (errorData.message) serverMessage = errorData.message;
+      } catch (_) { /* ignore parse error */ }
+      const err = new Error(serverMessage);
+      err.serverMessage = serverMessage;
+      throw err;
+    }
+
+    const audioBlob = await response.blob();
+    if (cacheKey) {
+      await rememberAudioBlob(cacheKey, audioBlob);
+    }
+    return audioBlob;
+  })();
+
+  if (cacheKey) {
+    pendingAudioCacheJobs.set(cacheKey, requestJob);
+  }
+
+  try {
+    return await requestJob;
+  } finally {
+    if (cacheKey) {
+      pendingAudioCacheJobs.delete(cacheKey);
+    }
+  }
+}
 
 function formatNumber(value) {
   return String(value).padStart(3, "0");
@@ -32,30 +149,20 @@ function getActiveCounter() {
 }
 
 async function fetchAnnouncementAudio() {
-  const response = await fetch("/api/announce", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const currentNumber = getPredictedAudioNumber("announce");
+  const cacheKey = currentNumber === null
+    ? null
+    : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, currentNumber]);
+
+  return fetchAudioWithLocalCache({
+    url: "/api/announce",
+    payload: {
       streamKey: activeStreamKey,
       counterKey: activeCounterKey,
       voice: voiceSelect.value
-    })
+    },
+    cacheKey
   });
-
-  if (!response.ok) {
-    let serverMessage = "Yêu cầu TTS thất bại";
-    try {
-      const errorData = await response.json();
-      if (errorData.message) serverMessage = errorData.message;
-    } catch (_) { /* ignore parse error */ }
-    const err = new Error(serverMessage);
-    err.serverMessage = serverMessage;
-    throw err;
-  }
-
-  return response.blob();
 }
 
 function playChime() {
@@ -185,23 +292,18 @@ async function incrementNumber() {
   incrementButton.disabled = true;
 
   try {
-    const response = await fetch("/api/increment-and-announce", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    const predictedNumber = getPredictedAudioNumber("increment");
+    const audioBlob = await fetchAudioWithLocalCache({
+      url: "/api/increment-and-announce",
+      payload: {
         streamKey: activeStreamKey,
         counterKey: activeCounterKey,
         voice: voiceSelect.value
-      })
+      },
+      cacheKey: predictedNumber === null
+        ? null
+        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
-
-    if (!response.ok) {
-      throw new Error("Yêu cầu tăng số thất bại");
-    }
-
-    const audioBlob = await response.blob();
     await playSequence(audioBlob);
   } catch (err) {
     console.error("Lỗi tăng số:", err);
@@ -217,23 +319,18 @@ async function decrementNumber() {
   decrementButton.disabled = true;
 
   try {
-    const response = await fetch("/api/decrement-and-announce", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
+    const predictedNumber = getPredictedAudioNumber("decrement");
+    const audioBlob = await fetchAudioWithLocalCache({
+      url: "/api/decrement-and-announce",
+      payload: {
         streamKey: activeStreamKey,
         counterKey: activeCounterKey,
         voice: voiceSelect.value
-      })
+      },
+      cacheKey: predictedNumber === null
+        ? null
+        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
-
-    if (!response.ok) {
-      throw new Error("Yêu cầu giảm số thất bại");
-    }
-
-    const audioBlob = await response.blob();
     await playSequence(audioBlob);
   } catch (err) {
     console.error("Lỗi giảm số:", err);
@@ -288,18 +385,15 @@ async function announceCustomText() {
 
   customAnnounceButton.disabled = true;
   try {
-    const response = await fetch("/api/announce-custom", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: text.trim(),
+    const trimmedText = text.trim();
+    const audioBlob = await fetchAudioWithLocalCache({
+      url: "/api/announce-custom",
+      payload: {
+        text: trimmedText,
         voice: voiceSelect.value
-      })
+      },
+      cacheKey: buildAudioCacheKey(["custom", voiceSelect.value, trimmedText])
     });
-
-    if (!response.ok) throw new Error("Custom TTS failed");
-
-    const audioBlob = await response.blob();
     await playSequence(audioBlob);
   } catch (error) {
     console.error("Lỗi phát loa tùy chỉnh:", error);
@@ -314,17 +408,13 @@ const announceStartButton = document.getElementById("announceStartButton");
 async function announceStart() {
   announceStartButton.disabled = true;
   try {
-    const response = await fetch("/api/announce-start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const audioBlob = await fetchAudioWithLocalCache({
+      url: "/api/announce-start",
+      payload: {
         voice: voiceSelect.value
-      })
+      },
+      cacheKey: buildAudioCacheKey(["start", voiceSelect.value])
     });
-
-    if (!response.ok) throw new Error("Start announcement failed");
-
-    const audioBlob = await response.blob();
     await playSequence(audioBlob);
   } catch (error) {
     console.error("Lỗi phát loa đầu ca:", error);
@@ -349,4 +439,3 @@ fetch("/api/state")
   .catch(() => {
     updateControl({ streams: {} });
   });
-
