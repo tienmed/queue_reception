@@ -2,7 +2,7 @@
   "streams": {
     "bhyt": {
       "label": "Bảo Hiểm Y Tế",
-      "currentNumber": 7,
+      "currentNumber": 6,
       "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Tiếp Nhận Bảo Hiểm Y Tế."
     },
     "thuPhi": {

@@ -192,7 +192,6 @@ function rememberTtsBuffer(cacheKey, audioBuffer) {
     ttsMemoryCache.delete(firstKey);
   }
 }
-
 async function readCacheFile(cachePath) {
   try {
     return await fsp.readFile(cachePath);
