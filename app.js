@@ -137,6 +137,8 @@ function writeState(nextState) {
 }
 
 let queueState = readState();
+console.log(`[DEBUG_INIT] queueState loaded. Streams: ${Object.keys(queueState.streams).join(', ')}`);
+
 const ttsMemoryCache = new Map();
 const pendingTtsJobs = new Map();
 const TTS_CACHE_LIMIT = 100;
@@ -226,64 +228,99 @@ async function synthesizeVietnameseSpeech(text, options = {}) {
   const bridgePath = path.join(__dirname, "tts_bridge.py");
   const voice = options.voice || "Bích Ngọc (Nữ - Miền Bắc)";
   const cacheKey = buildTtsCacheKey(text, voice);
-  const cachePath = path.join(ttsCacheDir, `${cacheKey}.wav`);
-  const pythonPath = process.env.TTS_PYTHON_PATH || "python";
 
-  if (ttsMemoryCache.has(cacheKey)) {
+  const refreshCache = options.refreshCache === true;
+  const skipCache = options.skipCache === true;
+
+  // Nếu skipCache là true, ta dùng một file tạm và không lưu vào Map/Disk cache chung
+  const cachePath = skipCache
+    ? path.join(ttsCacheDir, `temp_${crypto.randomUUID()}.wav`)
+    : path.join(ttsCacheDir, `${cacheKey}.wav`);
+
+  const pythonPath = "C:\\Users\\Thinkpad X280\\AppData\\Local\\Programs\\Python\\Python311\\python.exe";
+
+  if (!skipCache && !refreshCache && ttsMemoryCache.has(cacheKey)) {
     return ttsMemoryCache.get(cacheKey);
   }
 
-  const cachedBuffer = await readCacheFile(cachePath);
-  if (cachedBuffer) {
-    rememberTtsBuffer(cacheKey, cachedBuffer);
-    return cachedBuffer;
+  if (!skipCache && !refreshCache) {
+    const cachedBuffer = await readCacheFile(cachePath);
+    if (cachedBuffer) {
+      rememberTtsBuffer(cacheKey, cachedBuffer);
+      return cachedBuffer;
+    }
   }
 
-  if (pendingTtsJobs.has(cacheKey)) {
+  if (!skipCache && !refreshCache && pendingTtsJobs.has(cacheKey)) {
     return pendingTtsJobs.get(cacheKey);
   }
 
   const ttsJob = (async () => {
     try {
+      // Nếu là refreshCache, xóa file cũ trên đĩa trước khi tạo mới để đảm bảo file được thay thế dứt điểm
+      if (refreshCache && fs.existsSync(cachePath)) {
+        await fsp.unlink(cachePath).catch(() => { });
+      }
+
+      // Giảm timeout xuống 7s để tránh treo lâu nếu mạng HF chậm
       await execFileAsync(
         pythonPath,
         [bridgePath, text, "--output", cachePath, "--voice", voice],
-        { timeout: 30000 }
+        { timeout: 7000 }
       );
 
       const audioBuffer = await readCacheFile(cachePath);
+
+      // Nếu là skipCache, xóa file tạm sau khi đọc xong
+      if (skipCache) {
+        void fsp.unlink(cachePath).catch(() => { });
+      }
+
       if (audioBuffer) {
-        rememberTtsBuffer(cacheKey, audioBuffer);
+        if (!skipCache) rememberTtsBuffer(cacheKey, audioBuffer);
         return audioBuffer;
       }
 
-      throw new Error("Không tìm thấy file output TTS");
+      throw new Error("Không tìm thấy file output TTS sau khi chạy bridge");
     } catch (error) {
-      console.error("VieNeu-TTS thất bại, đang chuyển sang Google TTS:", error);
+      if (skipCache) {
+        void fsp.unlink(cachePath).catch(() => { });
+      }
+
+      console.warn(`[TTS_FALLBACK] VieNeu-TTS lỗi hoặc quá 7s, dùng Google TTS: ${error.message}`);
 
       try {
         const googleTts = require("google-tts-api");
         const audioBase64 = await googleTts.getAudioBase64(text, {
           lang: "vi",
           slow: false,
-          timeout: 15000
+          timeout: 10000
         });
+
         const audioBuffer = Buffer.from(audioBase64, "base64");
-        rememberTtsBuffer(cacheKey, audioBuffer);
+
+        if (!skipCache) {
+          rememberTtsBuffer(cacheKey, audioBuffer);
+          // Lưu vào cache đĩa để lần sau nhanh hơn
+          void fsp.writeFile(cachePath, audioBuffer).catch(e => console.error("Lưu cache đĩa thất bại:", e));
+        }
+
         return audioBuffer;
       } catch (googleError) {
-        console.error("Cả VieNeu-TTS và Google TTS đều thất bại:", googleError);
+        console.error("[TTS_CRITICAL] Cả VieNeu và Google TTS đều thất bại:", googleError);
         throw googleError;
       }
     }
   })();
 
-  pendingTtsJobs.set(cacheKey, ttsJob);
+  if (!skipCache) {
+    pendingTtsJobs.set(cacheKey, ttsJob);
+  }
 
   try {
     return await ttsJob;
   } finally {
-    pendingTtsJobs.delete(cacheKey);
+    if (!skipCache) pendingTtsJobs.delete(cacheKey);
   }
 }
 
@@ -371,7 +408,8 @@ app.post("/api/increment", (req, res) => {
 // API tăng số, phát thông báo số mới và prewarm âm thanh cho số kế tiếp
 app.post("/api/increment-and-announce", async (req, res) => {
   try {
-    const { streamKey, counterKey = "quay1", voice } = req.body;
+    const { streamKey, counterKey = "quay1", voice, refreshCache } = req.body;
+
     const stream = queueState.streams[streamKey];
     const counter = stream?.counters?.[counterKey];
 
@@ -383,6 +421,7 @@ app.post("/api/increment-and-announce", async (req, res) => {
     stream.nextNumber += 1;
     counter.currentNumber = stream.nextNumber;
     counter.lastCalledAt = new Date().toISOString();
+
     addCallLog({
       streamKey,
       streamLabel: stream.label,
@@ -395,16 +434,19 @@ app.post("/api/increment-and-announce", async (req, res) => {
     broadcastState();
 
     const currentText = buildStreamAnnouncementText(stream, stream.nextNumber, counter.label);
-    const audioBufferPromise = synthesizeVietnameseSpeech(currentText, { voice });
 
+    const audioBufferPromise = synthesizeVietnameseSpeech(currentText, { voice, refreshCache });
+
+    // Prewarm chạy ngầm, không block request hiện tại
     void prewarmNextAnnouncement(stream, voice, counter.label);
 
     const audioBuffer = await audioBufferPromise;
+
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
     res.send(audioBuffer);
   } catch (error) {
-    console.error("Lỗi tăng số + phát loa:", error);
+    console.error("[TTS_ERROR] Lỗi tăng số + phát loa:", error);
     res.status(500).json({ message: "Không thể tăng số và phát loa." });
   }
 });
@@ -441,7 +483,7 @@ app.post("/api/state", (req, res) => {
 // API gọi thông báo TTS (Dựa trên câu mẫu)
 app.post("/api/announce", async (req, res) => {
   try {
-    const { streamKey, counterKey = "quay1", voice } = req.body;
+    const { streamKey, counterKey = "quay1", voice, refreshCache } = req.body;
     const stream = queueState.streams[streamKey];
     const counter = stream?.counters?.[counterKey];
 
@@ -451,7 +493,7 @@ app.post("/api/announce", async (req, res) => {
     }
 
     const text = buildStreamAnnouncementText(stream, counter.currentNumber, counter.label);
-    const audioBuffer = await synthesizeVietnameseSpeech(text, { voice });
+    const audioBuffer = await synthesizeVietnameseSpeech(text, { voice, refreshCache });
 
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
@@ -465,14 +507,14 @@ app.post("/api/announce", async (req, res) => {
 // API thông báo nội dung tùy chỉnh
 app.post("/api/announce-custom", async (req, res) => {
   try {
-    const { text, voice } = req.body;
+    const { text, voice, refreshCache } = req.body;
 
     if (!text || !text.trim()) {
       res.status(400).json({ message: "Nội dung thông báo không được để trống." });
       return;
     }
 
-    const audioBuffer = await synthesizeVietnameseSpeech(text.trim(), { voice });
+    const audioBuffer = await synthesizeVietnameseSpeech(text.trim(), { voice, refreshCache, skipCache: true });
 
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");

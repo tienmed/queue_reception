@@ -4,11 +4,14 @@ const layoutButtons = Array.from(document.querySelectorAll("[data-layout]"));
 const clockTimeElement = document.getElementById("clockTime");
 const clockDateElement = document.getElementById("clockDate");
 const viewerSocket = io();
+
+// Metadata cho các luồng
 const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
 
+// Trạng thái hiển thị của Viewer
 let viewerState = { streams: {} };
-let viewerLayout = "1";
-let selectedStreams = ["bhyt"];
+let viewerLayout = "1"; // "1", "2", "3"
+let selectedSlots = [{ streamKey: "bhyt", counterKey: "quay1" }];
 
 function formatNumber(value) {
   return String(value).padStart(3, "0");
@@ -26,65 +29,97 @@ function updateClock() {
 }
 
 function getVisibleLimit() {
-  return viewerLayout === "2" ? 2 : 1;
+  return parseInt(viewerLayout, 10);
 }
 
+/**
+ * Đảm bảo số lượng slot được hiển thị khớp với layout (1, 2, hoặc 3)
+ */
 function ensureValidSelection() {
-  const availableStreams = streamOrder.filter((streamKey) => viewerState.streams[streamKey]);
   const visibleLimit = getVisibleLimit();
-  let nextSelection = selectedStreams.filter((streamKey) => availableStreams.includes(streamKey));
 
-  if (nextSelection.length === 0 && availableStreams.length > 0) {
-    nextSelection = [availableStreams[0]];
-  }
-
-  while (nextSelection.length < visibleLimit && nextSelection.length < availableStreams.length) {
-    const missingKey = availableStreams.find((streamKey) => !nextSelection.includes(streamKey));
-    if (!missingKey) {
-      break;
+  // Thu thập tất cả các quầy hiện có từ server state
+  const availableOptions = [];
+  streamOrder.forEach(sk => {
+    const s = viewerState.streams[sk];
+    if (s && s.counters) {
+      Object.keys(s.counters).forEach(ck => {
+        availableOptions.push({ streamKey: sk, counterKey: ck });
+      });
     }
-    nextSelection.push(missingKey);
+  });
+
+  // Lọc bỏ những slot không còn tồn tại trên server
+  selectedSlots = selectedSlots.filter(slot =>
+    availableOptions.some(opt => opt.streamKey === slot.streamKey && opt.counterKey === slot.counterKey)
+  );
+
+  // Nếu không có slot nào hợp lệ, chọn slot đầu tiên mặc định
+  if (selectedSlots.length === 0 && availableOptions.length > 0) {
+    selectedSlots = [availableOptions[0]];
   }
 
-  selectedStreams = nextSelection.slice(0, visibleLimit);
+  // Bổ sung thêm slot nếu layout yêu cầu hiển thị nhiều hơn hiện tại
+  while (selectedSlots.length < visibleLimit && selectedSlots.length < availableOptions.length) {
+    const nextOpt = availableOptions.find(opt =>
+      !selectedSlots.some(s => s.streamKey === opt.streamKey && s.counterKey === opt.counterKey)
+    );
+    if (!nextOpt) break;
+    selectedSlots.push(nextOpt);
+  }
+
+  // Giới hạn lại theo layout
+  selectedSlots = selectedSlots.slice(0, visibleLimit);
 }
 
 function renderStreamSelector() {
   ensureValidSelection();
+  const visibleLimit = getVisibleLimit();
 
-  streamSelectorElement.innerHTML = streamOrder
-    .filter((streamKey) => viewerState.streams[streamKey])
-    .map((streamKey) => {
-      const stream = viewerState.streams[streamKey];
-      const checked = selectedStreams.includes(streamKey) ? "checked" : "";
+  let html = "";
+  streamOrder.forEach(sk => {
+    const s = viewerState.streams[sk];
+    if (!s || !s.counters) return;
 
-      return `
+    html += `<div class="selector-group">`;
+    Object.keys(s.counters).forEach(ck => {
+      const counter = s.counters[ck];
+      const isSelected = selectedSlots.some(slot => slot.streamKey === sk && slot.counterKey === ck);
+      const checked = isSelected ? "checked" : "";
+
+      html += `
         <label class="stream-option">
-          <input type="checkbox" value="${streamKey}" ${checked} />
-          <span>${stream.label}</span>
+          <input type="checkbox" data-stream="${sk}" data-counter="${ck}" ${checked} />
+          <span>${s.label} - ${counter.label}</span>
         </label>
       `;
-    })
-    .join("");
+    });
+    html += `</div>`;
+  });
 
+  streamSelectorElement.innerHTML = html;
+
+  // Xử lý sự kiện khi người dùng chọn/bỏ chọn quầy
   streamSelectorElement.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
-      const checkedKeys = Array.from(streamSelectorElement.querySelectorAll('input[type="checkbox"]:checked')).map(
-        (item) => item.value
-      );
-      const visibleLimit = getVisibleLimit();
+      const checkedInputs = Array.from(streamSelectorElement.querySelectorAll('input[type="checkbox"]:checked'));
 
-      if (checkedKeys.length === 0) {
+      if (checkedInputs.length === 0) {
         checkbox.checked = true;
         return;
       }
 
-      if (checkedKeys.length > visibleLimit) {
+      // Nếu vượt quá giới hạn cột, bỏ chọn cái cũ nhất (hoặc ngăn cản)
+      if (checkedInputs.length > visibleLimit) {
         checkbox.checked = false;
         return;
       }
 
-      selectedStreams = checkedKeys;
+      selectedSlots = checkedInputs.map(input => ({
+        streamKey: input.dataset.stream,
+        counterKey: input.dataset.counter
+      }));
+
       renderViewer();
     });
   });
@@ -93,27 +128,23 @@ function renderStreamSelector() {
 function renderViewer() {
   ensureValidSelection();
   viewerGridElement.className = `viewer-grid layout-${viewerLayout}`;
-  viewerGridElement.innerHTML = selectedStreams
-    .map((streamKey) => {
-      const stream = viewerState.streams[streamKey];
-      const counters = Object.values(stream.counters || {});
-      const counterRows = counters
-        .map(
-          (counter) => `
-            <div class="viewer-counter-row">
-              <span class="viewer-counter-label">${counter.label}</span>
-              <strong class="viewer-counter-number">${formatNumber(counter.currentNumber || 0)}</strong>
-            </div>
-          `
-        )
-        .join("");
+
+  viewerGridElement.innerHTML = selectedSlots
+    .map((slot) => {
+      const stream = viewerState.streams[slot.streamKey];
+      const counter = stream.counters[slot.counterKey];
 
       return `
         <article class="viewer-panel">
-          <p class="eyebrow">Khu Tiếp Nhận</p>
+          <p class="eyebrow">Tiếp Nhận</p>
           <p class="viewer-stream-label">${stream.label}</p>
-          <div class="viewer-counter-list">${counterRows}</div>
-          <p class="viewer-caption">Số thứ tự đang được gọi theo từng quầy</p>
+          <p class="viewer-stream-label" style="font-size: 0.6em; opacity: 0.8; margin-top: -5px">${counter.label}</p>
+          
+          <div class="viewer-main-number">
+             <strong class="viewer-number">${formatNumber(counter.currentNumber || 0)}</strong>
+          </div>
+
+          <p class="viewer-caption">Số thứ tự đang được gọi</p>
         </article>
       `;
     })

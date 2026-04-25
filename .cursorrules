@@ -6,5 +6,5 @@
     - Chờ người dùng xét duyệt kế hoạch xong mới bắt đầu thực thi.
 3. **Báo cáo**: Luôn báo cáo hoàn thành chi tiết sau khi hoàn tất một nhiệm vụ (task) cụ thể.
 4. **Ngôn ngữ lập trình**: Luôn sử dụng tiếng Việt trong code comments và variable names.
-5. Tạo commit message bằng tiếng Việt.
-6. Bỏ qua thao tác recheck trên Browser sau mỗi task.
+5. **Tạo commit message** bằng tiếng Việt.
+6. **Bỏ qua thao tác re-check** trên Browser sau mỗi task.  

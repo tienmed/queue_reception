@@ -2,17 +2,68 @@
   "streams": {
     "bhyt": {
       "label": "Bảo Hiểm Y Tế",
-      "currentNumber": 6,
+      "nextNumber": 1,
+      "counters": {
+        "quay1": {
+          "label": "Quầy 1",
+          "currentNumber": 1,
+          "lastCalledAt": "2026-04-25T07:12:30.568Z"
+        },
+        "quay2": {
+          "label": "Quầy 2",
+          "currentNumber": 7,
+          "lastCalledAt": "2026-04-25T06:07:51.824Z"
+        },
+        "quay3": {
+          "label": "Quầy 3",
+          "currentNumber": 8,
+          "lastCalledAt": "2026-04-25T06:08:01.039Z"
+        }
+      },
       "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Tiếp Nhận Bảo Hiểm Y Tế."
     },
     "thuPhi": {
       "label": "Thu Phí",
-      "currentNumber": 5,
-      "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Thu Phí."
+      "nextNumber": 40,
+      "counters": {
+        "quay1": {
+          "label": "Quầy 1",
+          "currentNumber": 40,
+          "lastCalledAt": "2026-04-25T06:42:42.707Z"
+        },
+        "quay2": {
+          "label": "Quầy 2",
+          "currentNumber": 0,
+          "lastCalledAt": null
+        },
+        "quay3": {
+          "label": "Quầy 3",
+          "currentNumber": 0,
+          "lastCalledAt": null
+        }
+      },
+      "announcementTemplate": "Mời số thứ tự {{number}} tới quầy tiếp nhận Thu Phí."
     },
     "khamDoan": {
       "label": "Khám Đoàn",
-      "currentNumber": 4,
+      "nextNumber": 4,
+      "counters": {
+        "quay1": {
+          "label": "Quầy 1",
+          "currentNumber": 4,
+          "lastCalledAt": null
+        },
+        "quay2": {
+          "label": "Quầy 2",
+          "currentNumber": 0,
+          "lastCalledAt": null
+        },
+        "quay3": {
+          "label": "Quầy 3",
+          "currentNumber": 0,
+          "lastCalledAt": null
+        }
+      },
       "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Khám Đoàn."
     }
   }

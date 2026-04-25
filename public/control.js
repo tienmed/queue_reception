@@ -14,6 +14,8 @@ const voiceSelect = document.getElementById("voiceSelect");
 const speedRange = document.getElementById("speedRange");
 const customText = document.getElementById("customText");
 const customAnnounceButton = document.getElementById("customAnnounceButton");
+const refreshAudioBtn = document.getElementById("refreshAudioBtn");
+const speedLevelSpan = document.getElementById("speedLevel");
 
 const controlSocket = io();
 const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
@@ -41,7 +43,7 @@ function buildAnnouncementText(template, number, label) {
     .replaceAll("{{quay}}", label || "tiếp nhận");
 }
 
-async function fetchAnnouncementAudio() {
+async function fetchAnnouncementAudio(refreshCache = false) {
   const response = await fetch("/api/announce", {
     method: "POST",
     headers: {
@@ -50,7 +52,8 @@ async function fetchAnnouncementAudio() {
     body: JSON.stringify({
       streamKey: activeStreamKey,
       counterKey: activeCounterKey,
-      voice: voiceSelect.value
+      voice: voiceSelect.value,
+      refreshCache: refreshCache
     })
   });
 
@@ -65,6 +68,10 @@ function playAudioBlob(audioBlob) {
   return new Promise((resolve) => {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+
+    // Áp dụng tốc độ từ slider (1=0.8, 2=0.9, 3=1.0, 4=1.1, 5=1.2)
+    const speedMap = { "1": 0.8, "2": 0.9, "3": 1.0, "4": 1.1, "5": 1.2 };
+    audio.playbackRate = speedMap[speedRange.value] || 1.0;
 
     function done() {
       URL.revokeObjectURL(audioUrl);
@@ -195,19 +202,26 @@ async function incrementNumber() {
     await playAudioBlob(audioBlob);
   } catch (err) {
     console.error("Lỗi tăng số và phát loa:", err);
-    window.alert("Không thể tăng số hoặc phát loa. Vui lòng thử lại.");
+    // Trích xuất thông báo lỗi từ server nếu có
+    let msg = "Không thể tăng số hoặc phát loa. Vui lòng thử lại.";
+    if (err.message && err.message.includes("Yêu cầu")) {
+      msg = `${err.message}. Vui lòng kiểm tra lại hệ thống loa hoặc log server.`;
+    }
+    window.alert(msg);
   } finally {
     incrementButton.disabled = false;
   }
 }
 
-async function playSampleThenSpeak() {
-  if (announceButton.disabled) return;
+async function playSampleThenSpeak(refreshCache = false) {
+  if (announceButton.disabled || (refreshCache && refreshAudioBtn.disabled)) return;
+
+  if (refreshCache) refreshAudioBtn.disabled = true;
   announceButton.disabled = true;
 
   try {
     try {
-      const audioBlob = await fetchAnnouncementAudio();
+      const audioBlob = await fetchAnnouncementAudio(refreshCache);
       await playAudioBlob(audioBlob);
     } catch (err) {
       console.error("TTS lỗi, thử dùng API trình duyệt:", err);
@@ -215,6 +229,7 @@ async function playSampleThenSpeak() {
     }
   } finally {
     announceButton.disabled = false;
+    if (refreshCache) refreshAudioBtn.disabled = false;
   }
 }
 
@@ -244,6 +259,10 @@ function speakBrowserside() {
     if (vietnameseVoice) {
       utterance.voice = vietnameseVoice;
     }
+
+    // Áp dụng tốc độ trình duyệt mẫu (1=0.8, 2=0.9, 3=1.0, 4=1.1, 5=1.2)
+    const speedMap = { "1": 0.8, "2": 0.9, "3": 1.0, "4": 1.1, "5": 1.2 };
+    utterance.rate = speedMap[speedRange.value] || 1.0;
 
     synth.cancel();
     synth.speak(utterance);
@@ -324,6 +343,13 @@ announceButton.addEventListener("click", playSampleThenSpeak);
 customAnnounceButton.addEventListener("click", announceCustomText);
 setNumberBtn.addEventListener("click", handleSetNumber);
 saveTemplateBtn.addEventListener("click", saveAnnouncementTemplate);
+refreshAudioBtn.addEventListener("click", () => playSampleThenSpeak(true));
+
+speedRange.addEventListener("input", () => {
+  if (speedLevelSpan) {
+    speedLevelSpan.textContent = speedRange.value;
+  }
+});
 
 announcementTemplateInput.addEventListener("input", () => {
   const activeStream = getActiveStream();
