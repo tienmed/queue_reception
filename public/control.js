@@ -141,6 +141,8 @@ async function incrementNumber() {
 
   try {
     await postJson("/api/increment", { streamKey: activeStreamKey });
+    // Tự động phát loa gọi số mới sau khi tăng thành công
+    await playSampleThenSpeak();
   } catch (err) {
     console.error("Lỗi tăng số:", err);
     window.alert("Không thể tăng số. Vui lòng thử lại.");
