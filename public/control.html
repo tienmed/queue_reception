@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Man hinh cho - Dieu khien</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page control-page">
+      <section class="control-card">
+        <header class="control-header">
+          <div>
+            <p class="eyebrow">Bang dieu khien</p>
+            <h1 class="control-title">Quan ly 3 luong so thu tu</h1>
+            <p class="control-subtitle">
+              Chon luong can dieu khien, tang so, doi cau phat loa, va dong bo sang man hinh nguoi xem theo thoi gian thuc.
+            </p>
+          </div>
+          <div class="status-pill">Realtime</div>
+        </header>
+
+        <section class="control-grid">
+          <article class="panel">
+            <h2>Chon luong dieu khien</h2>
+            <div class="segment-control stream-tabs" id="streamTabs"></div>
+
+            <h2 class="spaced-title">So dang hien</h2>
+            <p class="stream-label-large" id="activeStreamLabel">BHYT</p>
+            <p class="current-number" id="currentNumber">000</p>
+            <p class="muted">So nay se hien thi ngay lap tuc o man hinh nguoi xem.</p>
+
+            <div class="button-group">
+              <button class="primary-btn" id="incrementButton" type="button">Tang len so tiep theo</button>
+              <button class="secondary-btn" id="announceButton" type="button">Phat loa cau mau + so hien tai</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <h2>Noi dung phat loa</h2>
+            <p class="muted">Nhap cau tieng Viet va dung <strong>{{number}}</strong> de chen so thu tu dang hien.</p>
+
+            <form id="announcementForm">
+              <textarea id="announcementTemplate" rows="5" placeholder="Moi so thu tu {{number}} toi quay tiep nhan."></textarea>
+              <div class="button-row">
+                <button class="secondary-btn" type="submit">Luu cau doc</button>
+              </div>
+            </form>
+
+            <div class="hint" id="previewText"></div>
+          </article>
+
+          <article class="panel">
+            <h2>Chinh so thu cong</h2>
+            <p class="muted">Dung khi can dong bo nhanh theo tinh huong thuc te tai quay tiep nhan.</p>
+
+            <form class="inline-form" id="setNumberForm">
+              <input type="number" min="0" step="1" id="setNumberInput" placeholder="Nhap so thu tu" />
+              <button class="secondary-btn" type="submit">Cap nhat</button>
+            </form>
+
+            <div class="hint">
+              Nut phat loa se co gang phat file <strong>/audio/sample-announcement.mp3</strong> truoc, sau do doc cau da
+              nhap cua luong dang chon.
+            </div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/control.js"></script>
+  </body>
+</html>

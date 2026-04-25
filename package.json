@@ -1,0 +1,14 @@
+{
+  "name": "queue-display",
+  "version": "1.0.0",
+  "description": "Man hinh cho khu tiep nhan voi viewer va control",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "google-tts-api": "^2.0.2",
+    "socket.io": "^4.8.1"
+  }
+}

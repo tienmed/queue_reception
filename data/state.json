@@ -1,0 +1,19 @@
+{
+  "streams": {
+    "bhyt": {
+      "label": "BHYT",
+      "currentNumber": 4,
+      "announcementTemplate": "mời số thứ tự {{number}} tới quầy tiếp nhận Bảo hiểm Y tế."
+    },
+    "thuPhi": {
+      "label": "Thu phi",
+      "currentNumber": 4,
+      "announcementTemplate": "Moi so thu tu {{number}} toi quay thu phi."
+    },
+    "khamDoan": {
+      "label": "Kham doan",
+      "currentNumber": 4,
+      "announcementTemplate": "Moi so thu tu {{number}} toi quay kham doan."
+    }
+  }
+}
