@@ -664,19 +664,11 @@ button:disabled {
   text-transform: uppercase;
 }
 
-/* VỊ TRÍ QUẦY - SIÊU TO (Clarified Position) */
-#activeCounterLabel {
-  font-size: 5vw;
-  background: #0f172a;
-  color: white;
-  padding: 10px 60px;
-  border-radius: 8px;
-  font-weight: 900;
-  display: inline-block;
-  margin-bottom: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+/*
+  Lưu ý:
+  #activeCounterLabel thuộc giao diện control.
+  Tránh override toàn cục trong section viewer để không phá bố cục control.
+*/
 
 /* SỐ THỨ TỰ - SIÊU TO, Màu Navy đậm (bớt nặng nề hơn đen) */
 .viewer-number {
