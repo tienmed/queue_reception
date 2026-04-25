@@ -2,20 +2,15 @@ const currentNumberElement = document.getElementById("currentNumber");
 const activeStreamLabelElement = document.getElementById("activeStreamLabel");
 const activeCounterLabelElement = document.getElementById("activeCounterLabel");
 const incrementButton = document.getElementById("incrementButton");
+const decrementButton = document.getElementById("decrementButton");
 const announceButton = document.getElementById("announceButton");
 const setNumberBtn = document.getElementById("setNumberBtn");
 const setNumberInput = document.getElementById("setNumberInput");
-const saveTemplateBtn = document.getElementById("saveTemplateBtn");
-const announcementTemplateInput = document.getElementById("announcementTemplate");
-const previewTextElement = document.getElementById("previewText");
 const streamTabsElement = document.getElementById("streamTabs");
 const counterTabsElement = document.getElementById("counterTabs");
 const voiceSelect = document.getElementById("voiceSelect");
-const speedRange = document.getElementById("speedRange");
 const customText = document.getElementById("customText");
 const customAnnounceButton = document.getElementById("customAnnounceButton");
-const refreshAudioBtn = document.getElementById("refreshAudioBtn");
-const speedLevelSpan = document.getElementById("speedLevel");
 
 const controlSocket = io();
 const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
@@ -36,14 +31,7 @@ function getActiveCounter() {
   return getActiveStream()?.counters?.[activeCounterKey];
 }
 
-function buildAnnouncementText(template, number, label) {
-  const safeTemplate = template && template.trim() ? template.trim() : "Mời khách hàng số {{number}} tới quầy {{quay}}.";
-  return safeTemplate
-    .replaceAll("{{number}}", formatNumber(number))
-    .replaceAll("{{quay}}", label || "tiếp nhận");
-}
-
-async function fetchAnnouncementAudio(refreshCache = false) {
+async function fetchAnnouncementAudio() {
   const response = await fetch("/api/announce", {
     method: "POST",
     headers: {
@@ -52,26 +40,38 @@ async function fetchAnnouncementAudio(refreshCache = false) {
     body: JSON.stringify({
       streamKey: activeStreamKey,
       counterKey: activeCounterKey,
-      voice: voiceSelect.value,
-      refreshCache: refreshCache
+      voice: voiceSelect.value
     })
   });
 
   if (!response.ok) {
-    throw new Error("Yêu cầu TTS thất bại");
+    let serverMessage = "Yêu cầu TTS thất bại";
+    try {
+      const errorData = await response.json();
+      if (errorData.message) serverMessage = errorData.message;
+    } catch (_) { /* ignore parse error */ }
+    const err = new Error(serverMessage);
+    err.serverMessage = serverMessage;
+    throw err;
   }
 
   return response.blob();
+}
+
+function playChime() {
+  return new Promise((resolve) => {
+    const chime = new Audio("/assets/sounds/notification.wav");
+    chime.addEventListener("ended", () => resolve(), { once: true });
+    chime.addEventListener("error", () => resolve(), { once: true });
+    chime.play().catch(() => resolve());
+  });
 }
 
 function playAudioBlob(audioBlob) {
   return new Promise((resolve) => {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
-
-    // Áp dụng tốc độ từ slider (1=0.8, 2=0.9, 3=1.0, 4=1.1, 5=1.2)
-    const speedMap = { "1": 0.8, "2": 0.9, "3": 1.0, "4": 1.1, "5": 1.2 };
-    audio.playbackRate = speedMap[speedRange.value] || 1.0;
+    audio.playbackRate = 1.0;
 
     function done() {
       URL.revokeObjectURL(audioUrl);
@@ -88,13 +88,20 @@ function playAudioBlob(audioBlob) {
   });
 }
 
+async function playSequence(audioBlob) {
+  await playChime();
+  // Small delay for natural feel
+  await new Promise(r => setTimeout(r, 400));
+  await playAudioBlob(audioBlob);
+}
+
 function renderStreamTabs() {
   streamTabsElement.innerHTML = streamOrder
     .filter((streamKey) => state.streams[streamKey])
     .map((streamKey) => {
       const stream = state.streams[streamKey];
       const activeClass = streamKey === activeStreamKey ? "active" : "";
-      return `<button class="segment-btn ${activeClass}" type="button" data-stream-key="${streamKey}">${stream.label}</button>`;
+      return `<button class="tab-btn ${activeClass}" type="button" data-stream-key="${streamKey}">${stream.label}</button>`;
     })
     .join("");
 
@@ -114,7 +121,7 @@ function renderCounterTabs() {
   counterTabsElement.innerHTML = Object.entries(counters)
     .map(([counterKey, counter]) => {
       const activeClass = counterKey === activeCounterKey ? "active" : "";
-      return `<button class="segment-btn ${activeClass}" type="button" data-counter-key="${counterKey}">${counter.label}</button>`;
+      return `<button class="tab-btn ${activeClass}" type="button" data-counter-key="${counterKey}">${counter.label}</button>`;
     })
     .join("");
 
@@ -137,12 +144,7 @@ function renderControl() {
   activeCounterLabelElement.textContent = activeCounter?.label || "Quầy";
   currentNumberElement.textContent = formatNumber(activeCounter?.currentNumber || 0);
   setNumberInput.value = String(activeStream.nextNumber || 0);
-  announcementTemplateInput.value = activeStream.announcementTemplate;
-  previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
-    activeStream.announcementTemplate,
-    activeCounter?.currentNumber || 0,
-    activeCounter?.label || activeStream.label
-  )}`;
+
   renderStreamTabs();
   renderCounterTabs();
 }
@@ -179,6 +181,7 @@ async function postJson(url, payload) {
 
 async function incrementNumber() {
   if (incrementButton.disabled) return;
+  incrementButton.classList.add("loading");
   incrementButton.disabled = true;
 
   try {
@@ -195,78 +198,65 @@ async function incrementNumber() {
     });
 
     if (!response.ok) {
-      throw new Error("Yêu cầu tăng số + phát loa thất bại");
+      throw new Error("Yêu cầu tăng số thất bại");
     }
 
     const audioBlob = await response.blob();
-    await playAudioBlob(audioBlob);
+    await playSequence(audioBlob);
   } catch (err) {
-    console.error("Lỗi tăng số và phát loa:", err);
-    // Trích xuất thông báo lỗi từ server nếu có
-    let msg = "Không thể tăng số hoặc phát loa. Vui lòng thử lại.";
-    if (err.message && err.message.includes("Yêu cầu")) {
-      msg = `${err.message}. Vui lòng kiểm tra lại hệ thống loa hoặc log server.`;
-    }
-    window.alert(msg);
+    console.error("Lỗi tăng số:", err);
+    window.alert(err.message || "Không thể tăng số.");
   } finally {
+    incrementButton.classList.remove("loading");
     incrementButton.disabled = false;
   }
 }
 
-async function playSampleThenSpeak(refreshCache = false) {
-  if (announceButton.disabled || (refreshCache && refreshAudioBtn.disabled)) return;
-
-  if (refreshCache) refreshAudioBtn.disabled = true;
-  announceButton.disabled = true;
+async function decrementNumber() {
+  if (decrementButton.disabled) return;
+  decrementButton.disabled = true;
 
   try {
-    try {
-      const audioBlob = await fetchAnnouncementAudio(refreshCache);
-      await playAudioBlob(audioBlob);
-    } catch (err) {
-      console.error("TTS lỗi, thử dùng API trình duyệt:", err);
-      await speakBrowserside();
+    const response = await fetch("/api/decrement-and-announce", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        streamKey: activeStreamKey,
+        counterKey: activeCounterKey,
+        voice: voiceSelect.value
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Yêu cầu giảm số thất bại");
     }
+
+    const audioBlob = await response.blob();
+    await playSequence(audioBlob);
+  } catch (err) {
+    console.error("Lỗi giảm số:", err);
+    window.alert(err.message || "Không thể giảm số.");
   } finally {
-    announceButton.disabled = false;
-    if (refreshCache) refreshAudioBtn.disabled = false;
+    decrementButton.disabled = false;
   }
 }
 
-function speakBrowserside() {
-  return new Promise((resolve) => {
-    const activeStream = getActiveStream();
-    const activeCounter = getActiveCounter();
-    const synth = window.speechSynthesis;
+async function playSampleThenSpeak() {
+  if (announceButton.disabled) return;
+  announceButton.disabled = true;
 
-    if (!activeStream || !activeCounter || !synth) {
-      resolve();
-      return;
-    }
-
-    const text = buildAnnouncementText(
-      activeStream.announcementTemplate,
-      activeCounter.currentNumber,
-      activeCounter.label
-    );
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "vi-VN";
-    utterance.onend = resolve;
-    utterance.onerror = resolve;
-
-    const voices = synth.getVoices();
-    const vietnameseVoice = voices.find((voice) => voice.lang === "vi-VN");
-    if (vietnameseVoice) {
-      utterance.voice = vietnameseVoice;
-    }
-
-    // Áp dụng tốc độ trình duyệt mẫu (1=0.8, 2=0.9, 3=1.0, 4=1.1, 5=1.2)
-    const speedMap = { "1": 0.8, "2": 0.9, "3": 1.0, "4": 1.1, "5": 1.2 };
-    utterance.rate = speedMap[speedRange.value] || 1.0;
-
-    synth.cancel();
-    synth.speak(utterance);
-  });
+  try {
+    const audioBlob = await fetchAnnouncementAudio();
+    await playSequence(audioBlob);
+  } catch (err) {
+    console.error("Lỗi phát loa:", err);
+    const msg = err.serverMessage || "Không thể phát loa.";
+    window.alert(msg);
+  } finally {
+    announceButton.disabled = false;
+  }
 }
 
 async function handleSetNumber() {
@@ -282,28 +272,10 @@ async function handleSetNumber() {
     await postJson("/api/state", {
       streamKey: activeStreamKey,
       counterKey: activeCounterKey,
-      currentNumber: nextValue,
-      announcementTemplate: announcementTemplateInput.value
+      currentNumber: nextValue
     });
   } catch (_error) {
     window.alert("Không cập nhật được số.");
-  }
-}
-
-async function saveAnnouncementTemplate() {
-  const activeStream = getActiveStream();
-  if (!activeStream) return;
-
-  try {
-    await postJson("/api/state", {
-      streamKey: activeStreamKey,
-      counterKey: activeCounterKey,
-      currentNumber: activeStream.nextNumber,
-      announcementTemplate: announcementTemplateInput.value
-    });
-    window.alert("Đã lưu mẫu câu thành công!");
-  } catch (_error) {
-    window.alert("Không lưu được mẫu câu.");
   }
 }
 
@@ -321,7 +293,6 @@ async function announceCustomText() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: text.trim(),
-        counterKey: activeCounterKey,
         voice: voiceSelect.value
       })
     });
@@ -329,7 +300,7 @@ async function announceCustomText() {
     if (!response.ok) throw new Error("Custom TTS failed");
 
     const audioBlob = await response.blob();
-    await playAudioBlob(audioBlob);
+    await playSequence(audioBlob);
   } catch (error) {
     console.error("Lỗi phát loa tùy chỉnh:", error);
     window.alert("Không thể phát loa nội dung này.");
@@ -338,29 +309,37 @@ async function announceCustomText() {
   }
 }
 
-incrementButton.addEventListener("click", incrementNumber);
-announceButton.addEventListener("click", playSampleThenSpeak);
-customAnnounceButton.addEventListener("click", announceCustomText);
-setNumberBtn.addEventListener("click", handleSetNumber);
-saveTemplateBtn.addEventListener("click", saveAnnouncementTemplate);
-refreshAudioBtn.addEventListener("click", () => playSampleThenSpeak(true));
+const announceStartButton = document.getElementById("announceStartButton");
 
-speedRange.addEventListener("input", () => {
-  if (speedLevelSpan) {
-    speedLevelSpan.textContent = speedRange.value;
+async function announceStart() {
+  announceStartButton.disabled = true;
+  try {
+    const response = await fetch("/api/announce-start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        voice: voiceSelect.value
+      })
+    });
+
+    if (!response.ok) throw new Error("Start announcement failed");
+
+    const audioBlob = await response.blob();
+    await playSequence(audioBlob);
+  } catch (error) {
+    console.error("Lỗi phát loa đầu ca:", error);
+    window.alert("Không thể phát loa thông báo đầu ca.");
+  } finally {
+    announceStartButton.disabled = false;
   }
-});
+}
 
-announcementTemplateInput.addEventListener("input", () => {
-  const activeStream = getActiveStream();
-  if (!activeStream) return;
-
-  previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
-    announcementTemplateInput.value,
-    getActiveCounter()?.currentNumber || 0,
-    getActiveCounter()?.label || activeStream.label
-  )}`;
-});
+incrementButton.addEventListener("click", incrementNumber);
+decrementButton.addEventListener("click", decrementNumber);
+announceButton.addEventListener("click", playSampleThenSpeak);
+setNumberBtn.addEventListener("click", handleSetNumber);
+customAnnounceButton.addEventListener("click", announceCustomText);
+announceStartButton.addEventListener("click", announceStart);
 
 controlSocket.on("queue:update", updateControl);
 
@@ -370,3 +349,4 @@ fetch("/api/state")
   .catch(() => {
     updateControl({ streams: {} });
   });
+

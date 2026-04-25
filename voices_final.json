@@ -1,0 +1,22 @@
+{
+  "presets": [
+    [
+      "Bích Ngọc (Nữ - Miền Bắc)",
+      "Bích Ngọc (Nữ - Miền Bắc)"
+    ],
+    [
+      "Phạm Tuyên (Nam - Miền Bắc)",
+      "Phạm Tuyên (Nam - Miền Bắc)"
+    ],
+    [
+      "Thục Đoan (Nữ - Miền Nam)",
+      "Thục Đoan (Nữ - Miền Nam)"
+    ],
+    [
+      "Xuân Vĩnh (Nam - Miền Nam)",
+      "Xuân Vĩnh (Nam - Miền Nam)"
+    ]
+  ],
+  "all_voices": [],
+  "get_voices_error": "'TurboVieNeuTTS' object has no attribute 'get_voices'"
+}

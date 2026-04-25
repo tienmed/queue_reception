@@ -130,15 +130,17 @@ function renderViewer() {
   viewerGridElement.className = `viewer-grid layout-${viewerLayout}`;
 
   viewerGridElement.innerHTML = selectedSlots
-    .map((slot) => {
+    .map((slot, index) => {
       const stream = viewerState.streams[slot.streamKey];
       const counter = stream.counters[slot.counterKey];
 
       return `
-        <article class="viewer-panel">
+        <article class="viewer-panel color-slot-${index + 1}">
           <p class="eyebrow">Tiếp Nhận</p>
-          <p class="viewer-stream-label">${stream.label}</p>
-          <p class="viewer-stream-label" style="font-size: 0.6em; opacity: 0.8; margin-top: -5px">${counter.label}</p>
+          <div class="viewer-stream-container">
+            <p class="viewer-stream-label">${stream.label}</p>
+            <p class="viewer-counter-label">${counter.label}</p>
+          </div>
           
           <div class="viewer-main-number">
              <strong class="viewer-number">${formatNumber(counter.currentNumber || 0)}</strong>

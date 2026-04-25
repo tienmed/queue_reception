@@ -11,6 +11,7 @@ def main():
     parser.add_argument("text", help="Văn bản cần chuyển thành giọng nói")
     parser.add_argument("--output", default="public/tts_output.wav", help="Đường dẫn file đầu ra")
     parser.add_argument("--voice", default="Bích Ngọc (Nữ - Miền Bắc)", help="Tên giọng đọc (preset)")
+    parser.add_argument("--speed", type=float, default=1.0, help="Tốc độ đọc (mặc định 1.0)")
     
     args = parser.parse_args()
 
@@ -27,7 +28,7 @@ def main():
             voice_data = tts.get_preset_voice("Bích Ngọc (Nữ - Miền Bắc)")
 
         # Thực hiện chuyển đổi văn bản thành âm thanh
-        audio = tts.infer(text=args.text, voice=voice_data)
+        audio = tts.infer(text=args.text, voice=voice_data, speed=args.speed)
         
         # Lưu file âm thanh
         tts.save(audio, args.output)

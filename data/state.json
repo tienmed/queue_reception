@@ -2,12 +2,12 @@
   "streams": {
     "bhyt": {
       "label": "Bảo Hiểm Y Tế",
-      "nextNumber": 10,
+      "nextNumber": 26,
       "counters": {
         "quay1": {
           "label": "Quầy 1",
-          "currentNumber": 10,
-          "lastCalledAt": "2026-04-25T07:15:13.251Z"
+          "currentNumber": 26,
+          "lastCalledAt": "2026-04-25T11:32:40.356Z"
         },
         "quay2": {
           "label": "Quầy 2",
@@ -24,17 +24,17 @@
     },
     "thuPhi": {
       "label": "Thu Phí",
-      "nextNumber": 40,
+      "nextNumber": 11,
       "counters": {
         "quay1": {
           "label": "Quầy 1",
-          "currentNumber": 40,
-          "lastCalledAt": "2026-04-25T06:42:42.707Z"
+          "currentNumber": 10,
+          "lastCalledAt": "2026-04-25T11:13:51.932Z"
         },
         "quay2": {
           "label": "Quầy 2",
-          "currentNumber": 0,
-          "lastCalledAt": null
+          "currentNumber": 11,
+          "lastCalledAt": "2026-04-25T11:16:27.231Z"
         },
         "quay3": {
           "label": "Quầy 3",
@@ -46,12 +46,12 @@
     },
     "khamDoan": {
       "label": "Khám Đoàn",
-      "nextNumber": 4,
+      "nextNumber": 5,
       "counters": {
         "quay1": {
           "label": "Quầy 1",
-          "currentNumber": 4,
-          "lastCalledAt": null
+          "currentNumber": 5,
+          "lastCalledAt": "2026-04-25T11:06:37.651Z"
         },
         "quay2": {
           "label": "Quầy 2",

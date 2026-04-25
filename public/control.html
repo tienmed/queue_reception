@@ -14,96 +14,100 @@
   <main class="control-layout">
     <section class="control-main">
       <header class="main-header">
-        <h1>Hệ Thống Gọi Số Thông Minh</h1>
-        <div class="status-indicator">Trực Tuyến</div>
+        <div class="brand">
+          <i data-lucide="layers" class="icon-brand"></i>
+          <h1>QueueControl <span>Pro</span></h1>
+        </div>
+        <div class="status-indicator">Hệ thống sẵn sàng</div>
       </header>
 
       <div class="viewer-emulator">
-        <h2 id="activeStreamLabel">Phòng Khám BHYT</h2>
-        <p id="activeCounterLabel">Quầy 1</p>
-        <div class="big-number" id="currentNumber">000</div>
-        <div class="viewer-hint">SỐ HIỆN TẠI</div>
+        <div class="emulator-content">
+          <h2 id="activeStreamLabel">---</h2>
+          <p id="activeCounterLabel">---</p>
+          <div class="big-number" id="currentNumber">000</div>
+        </div>
+        <div class="emulator-footer">
+          <span>ĐANG PHỤC VỤ</span>
+        </div>
       </div>
 
-      <div class="primary-actions">
-        <button class="btn-mega btn-primary" id="incrementButton">
-          <i data-lucide="user-plus" class="icon-lg"></i>
-          <span class="text">Gọi Số Tiếp Theo</span>
-        </button>
-        <button class="btn-mega btn-outline" id="announceButton">
-          <i data-lucide="megaphone" class="icon-lg"></i>
-          <span class="text">Phát Loa Gọi Số</span>
-        </button>
-      </div>
-    </section>
-
-    <aside class="control-config">
-      <div class="config-scroll-area">
-        <div class="panel">
-          <h3>Luồng Phục Vụ</h3>
-          <div class="segment-control" id="streamTabs"></div>
-          <h3>Quầy Phục Vụ</h3>
-          <div class="segment-control" id="counterTabs"></div>
-        </div>
-
-        <div class="panel">
-          <h3>Thiết Lập Thông Báo</h3>
-          <div class="field">
-            <label>Mẫu câu gọi số ({{number}}, {{quay}})</label>
-            <textarea id="announcementTemplate" rows="3" placeholder="Xin mời số {{number}} đến {{quay}}..."></textarea>
-            <div class="preview" id="previewText">Xem trước: ...</div>
-            <button class="btn-save" id="saveTemplateBtn">Cập Nhật Mẫu</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h3>Giọng Nói & Âm Thanh</h3>
-          <div class="field-row">
-            <div class="field">
-              <label>Giọng đọc</label>
-              <select id="voiceSelect">
-                <option value="bich_ngoc">Bích Ngọc (Nữ - Miền Bắc)</option>
-                <option value="pham_tuyen">Phạm Tuyên (Nam - Miền Bắc)</option>
-                <option value="thuc_doan">Thục Đoan (Nữ - Miền Nam)</option>
-                <option value="xuan_vinh">Xuân Vĩnh (Nam - Miền Nam)</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Tốc độ: <span id="speedLevel">4</span>/5</label>
-              <input type="range" min="1" max="5" step="1" value="4" id="speedRange" class="slider" />
-              <div
-                style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-top: 4px;">
-                <span>Chậm</span>
-                <span>Vừa</span>
-                <span>Nhanh</span>
-              </div>
-            </div>
-          </div>
-          <div class="field">
-            <label>Hiệu chỉnh số thủ công</label>
-            <div class="inline-input">
-              <input type="number" id="setNumberInput" min="0" value="0" />
-              <button id="setNumberBtn">Đặt Lại</button>
-            </div>
-          </div>
-          <div class="field">
-            <button class="btn-outline" id="refreshAudioBtn" style="width: 100%; justify-content: center; gap: 8px;">
-              <i data-lucide="refresh-cw" class="icon-sm"></i>
-              Cập Nhật Âm Thanh (Re-generate)
+      <div class="control-grid">
+        <div class="action-card main-call">
+          <div class="action-buttons">
+            <button class="btn-action btn-decrement" id="decrementButton" title="Gọi số trước (-1)">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <button class="btn-action btn-increment" id="incrementButton">
+              <i data-lucide="user-plus"></i>
+              <span>GỌI SỐ TIẾP THEO</span>
             </button>
           </div>
         </div>
 
-        <div class="panel highlight">
-          <h3>Thông Báo Tùy Chỉnh</h3>
-          <div class="field">
-            <textarea id="customText" rows="2" placeholder="Nhập nội dung thông báo khẩn cấp..."></textarea>
+        <button class="btn-secondary" id="announceButton">
+          <i data-lucide="megaphone"></i>
+          <span>Gọi lại số này</span>
+        </button>
+      </div>
+    </section>
+
+    <aside class="control-sidebar">
+      <div class="sidebar-content">
+        <div class="config-group">
+          <h3><i data-lucide="route"></i> LUỒNG PHỤC VỤ</h3>
+          <div class="tab-list" id="streamTabs"></div>
+        </div>
+
+        <div class="config-group">
+          <h3><i data-lucide="monitor"></i> QUẦY PHỤC VỤ</h3>
+          <div class="tab-list" id="counterTabs"></div>
+        </div>
+
+        <div class="config-group">
+          <h3><i data-lucide="mic"></i> GIỌNG ĐỌC</h3>
+          <div class="select-wrapper">
+            <select id="voiceSelect">
+              <option value="bich_ngoc">Bích Ngọc (Nữ - Bắc)</option>
+              <option value="pham_tuyen">Phạm Tuyên (Nam - Bắc)</option>
+              <option value="thuc_doan">Thục Đoan (Nữ - Nam)</option>
+              <option value="xuan_vinh">Xuân Vĩnh (Nam - Nam)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="config-group">
+          <h3><i data-lucide="settings-2"></i> ĐẶT LẠI SỐ</h3>
+          <div class="manual-input">
+            <input type="number" id="setNumberInput" min="0" value="0" />
+            <button id="setNumberBtn">CẬP NHẬT</button>
+          </div>
+        </div>
+
+        <div class="config-group system-announce">
+          <h3><i data-lucide="bell"></i> THÔNG BÁO HỆ THỐNG</h3>
+          <button class="btn-secondary btn-full" id="announceStartButton">
+            <i data-lucide="play-circle"></i>
+            <span>PHÁT THÔNG BÁO ĐẦU CA</span>
+          </button>
+        </div>
+
+        <div class="config-group custom-announce">
+          <h3><i data-lucide="message-square"></i> THÔNG BÁO TÙY CHỈNH</h3>
+          <div class="custom-input">
+            <textarea id="customText" rows="2" placeholder="Nhập nội dung thông báo..."></textarea>
             <button class="btn-custom" id="customAnnounceButton">Phát Thông Báo</button>
           </div>
         </div>
       </div>
+
+
+      <div class="sidebar-footer">
+        <p>&copy; 2026 QueueReception Dashboard</p>
+      </div>
     </aside>
   </main>
+
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
