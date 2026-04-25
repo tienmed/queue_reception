@@ -10,20 +10,13 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+const fsp = fs.promises;
 
 const PORT = process.env.PORT || 3000;
 const dataDir = path.join(__dirname, "data");
 const stateFile = path.join(dataDir, "state.json");
 const ttsCacheDir = path.join(__dirname, "data", "tts-cache");
 const execFileAsync = promisify(execFile);
-
-// Các tùy chọn mặc định cho TTS (nếu dùng Google làm dự phòng)
-const ttsOptions = {
-  voice: "vi-VN-HoaiMyNeural",
-  rate: "-6%",
-  volume: "+0%",
-  pitch: "+0Hz"
-};
 
 // Trạng thái mặc định của hệ thống gọi số
 const defaultState = {
@@ -116,11 +109,14 @@ let queueState = readState();
 const ttsMemoryCache = new Map();
 const pendingTtsJobs = new Map();
 const TTS_CACHE_LIMIT = 100;
+let ensureTtsCacheDirPromise = null;
 
 function ensureTtsCacheDir() {
-  if (!fs.existsSync(ttsCacheDir)) {
-    fs.mkdirSync(ttsCacheDir, { recursive: true });
+  if (!ensureTtsCacheDirPromise) {
+    ensureTtsCacheDirPromise = fsp.mkdir(ttsCacheDir, { recursive: true });
   }
+
+  return ensureTtsCacheDirPromise;
 }
 
 function buildTtsCacheKey(text, voice) {
@@ -136,6 +132,14 @@ function rememberTtsBuffer(cacheKey, audioBuffer) {
   if (ttsMemoryCache.size > TTS_CACHE_LIMIT) {
     const firstKey = ttsMemoryCache.keys().next().value;
     ttsMemoryCache.delete(firstKey);
+  }
+}
+
+async function readCacheFile(cachePath) {
+  try {
+    return await fsp.readFile(cachePath);
+  } catch (_error) {
+    return null;
   }
 }
 
@@ -156,7 +160,7 @@ function buildAnnouncementText(template, currentNumber, label = "tiếp nhận")
 
 // Hàm tổng hợp giọng nói tiếng Việt
 async function synthesizeVietnameseSpeech(text, options = {}) {
-  ensureTtsCacheDir();
+  await ensureTtsCacheDir();
   const bridgePath = path.join(__dirname, "tts_bridge.py");
   const voice = options.voice || "Bích Ngọc (Nữ - Miền Bắc)";
   const cacheKey = buildTtsCacheKey(text, voice);
@@ -167,8 +171,8 @@ async function synthesizeVietnameseSpeech(text, options = {}) {
     return ttsMemoryCache.get(cacheKey);
   }
 
-  if (fs.existsSync(cachePath)) {
-    const cachedBuffer = fs.readFileSync(cachePath);
+  const cachedBuffer = await readCacheFile(cachePath);
+  if (cachedBuffer) {
     rememberTtsBuffer(cacheKey, cachedBuffer);
     return cachedBuffer;
   }
@@ -185,8 +189,8 @@ async function synthesizeVietnameseSpeech(text, options = {}) {
         { timeout: 30000 }
       );
 
-      if (fs.existsSync(cachePath)) {
-        const audioBuffer = fs.readFileSync(cachePath);
+      const audioBuffer = await readCacheFile(cachePath);
+      if (audioBuffer) {
         rememberTtsBuffer(cacheKey, audioBuffer);
         return audioBuffer;
       }
