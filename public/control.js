@@ -1,5 +1,6 @@
 const currentNumberElement = document.getElementById("currentNumber");
 const activeStreamLabelElement = document.getElementById("activeStreamLabel");
+const activeCounterLabelElement = document.getElementById("activeCounterLabel");
 const incrementButton = document.getElementById("incrementButton");
 const announceButton = document.getElementById("announceButton");
 const setNumberBtn = document.getElementById("setNumberBtn");
@@ -8,6 +9,7 @@ const saveTemplateBtn = document.getElementById("saveTemplateBtn");
 const announcementTemplateInput = document.getElementById("announcementTemplate");
 const previewTextElement = document.getElementById("previewText");
 const streamTabsElement = document.getElementById("streamTabs");
+const counterTabsElement = document.getElementById("counterTabs");
 const voiceSelect = document.getElementById("voiceSelect");
 const speedRange = document.getElementById("speedRange");
 const customText = document.getElementById("customText");
@@ -18,6 +20,7 @@ const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
 
 let state = { streams: {} };
 let activeStreamKey = "bhyt";
+let activeCounterKey = "quay1";
 
 function formatNumber(value) {
   return String(value).padStart(3, "0");
@@ -25,6 +28,10 @@ function formatNumber(value) {
 
 function getActiveStream() {
   return state.streams[activeStreamKey];
+}
+
+function getActiveCounter() {
+  return getActiveStream()?.counters?.[activeCounterKey];
 }
 
 function buildAnnouncementText(template, number, label) {
@@ -42,6 +49,7 @@ async function fetchAnnouncementAudio() {
     },
     body: JSON.stringify({
       streamKey: activeStreamKey,
+      counterKey: activeCounterKey,
       voice: voiceSelect.value
     })
   });
@@ -86,6 +94,26 @@ function renderStreamTabs() {
   streamTabsElement.querySelectorAll("[data-stream-key]").forEach((button) => {
     button.addEventListener("click", () => {
       activeStreamKey = button.dataset.streamKey;
+      activeCounterKey = "quay1";
+      renderControl();
+    });
+  });
+}
+
+function renderCounterTabs() {
+  const activeStream = getActiveStream();
+  const counters = activeStream?.counters || {};
+
+  counterTabsElement.innerHTML = Object.entries(counters)
+    .map(([counterKey, counter]) => {
+      const activeClass = counterKey === activeCounterKey ? "active" : "";
+      return `<button class="segment-btn ${activeClass}" type="button" data-counter-key="${counterKey}">${counter.label}</button>`;
+    })
+    .join("");
+
+  counterTabsElement.querySelectorAll("[data-counter-key]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeCounterKey = button.dataset.counterKey;
       renderControl();
     });
   });
@@ -93,20 +121,23 @@ function renderStreamTabs() {
 
 function renderControl() {
   const activeStream = getActiveStream();
+  const activeCounter = getActiveCounter();
   if (!activeStream) {
     return;
   }
 
   activeStreamLabelElement.textContent = activeStream.label;
-  currentNumberElement.textContent = formatNumber(activeStream.currentNumber);
-  setNumberInput.value = String(activeStream.currentNumber);
+  activeCounterLabelElement.textContent = activeCounter?.label || "Quầy";
+  currentNumberElement.textContent = formatNumber(activeCounter?.currentNumber || 0);
+  setNumberInput.value = String(activeStream.nextNumber || 0);
   announcementTemplateInput.value = activeStream.announcementTemplate;
   previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
     activeStream.announcementTemplate,
-    activeStream.currentNumber,
-    activeStream.label
+    activeCounter?.currentNumber || 0,
+    activeCounter?.label || activeStream.label
   )}`;
   renderStreamTabs();
+  renderCounterTabs();
 }
 
 function updateControl(nextState) {
@@ -114,6 +145,10 @@ function updateControl(nextState) {
 
   if (!state.streams[activeStreamKey]) {
     activeStreamKey = streamOrder.find((streamKey) => state.streams[streamKey]) || "bhyt";
+  }
+
+  if (!state.streams[activeStreamKey]?.counters?.[activeCounterKey]) {
+    activeCounterKey = "quay1";
   }
 
   renderControl();
@@ -140,10 +175,27 @@ async function incrementNumber() {
   incrementButton.disabled = true;
 
   try {
-    await postJson("/api/increment", { streamKey: activeStreamKey });
+    const response = await fetch("/api/increment-and-announce", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        streamKey: activeStreamKey,
+        counterKey: activeCounterKey,
+        voice: voiceSelect.value
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Yêu cầu tăng số + phát loa thất bại");
+    }
+
+    const audioBlob = await response.blob();
+    await playAudioBlob(audioBlob);
   } catch (err) {
-    console.error("Lỗi tăng số:", err);
-    window.alert("Không thể tăng số. Vui lòng thử lại.");
+    console.error("Lỗi tăng số và phát loa:", err);
+    window.alert("Không thể tăng số hoặc phát loa. Vui lòng thử lại.");
   } finally {
     incrementButton.disabled = false;
   }
@@ -169,17 +221,18 @@ async function playSampleThenSpeak() {
 function speakBrowserside() {
   return new Promise((resolve) => {
     const activeStream = getActiveStream();
+    const activeCounter = getActiveCounter();
     const synth = window.speechSynthesis;
 
-    if (!activeStream || !synth) {
+    if (!activeStream || !activeCounter || !synth) {
       resolve();
       return;
     }
 
     const text = buildAnnouncementText(
       activeStream.announcementTemplate,
-      activeStream.currentNumber,
-      activeStream.label
+      activeCounter.currentNumber,
+      activeCounter.label
     );
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "vi-VN";
@@ -209,6 +262,7 @@ async function handleSetNumber() {
   try {
     await postJson("/api/state", {
       streamKey: activeStreamKey,
+      counterKey: activeCounterKey,
       currentNumber: nextValue,
       announcementTemplate: announcementTemplateInput.value
     });
@@ -224,7 +278,8 @@ async function saveAnnouncementTemplate() {
   try {
     await postJson("/api/state", {
       streamKey: activeStreamKey,
-      currentNumber: activeStream.currentNumber,
+      counterKey: activeCounterKey,
+      currentNumber: activeStream.nextNumber,
       announcementTemplate: announcementTemplateInput.value
     });
     window.alert("Đã lưu mẫu câu thành công!");
@@ -247,6 +302,7 @@ async function announceCustomText() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: text.trim(),
+        counterKey: activeCounterKey,
         voice: voiceSelect.value
       })
     });
@@ -275,8 +331,8 @@ announcementTemplateInput.addEventListener("input", () => {
 
   previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
     announcementTemplateInput.value,
-    activeStream.currentNumber,
-    activeStream.label
+    getActiveCounter()?.currentNumber || 0,
+    getActiveCounter()?.label || activeStream.label
   )}`;
 });
 

@@ -159,6 +159,13 @@ h1 {
   letter-spacing: 0.1em;
 }
 
+#activeCounterLabel {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
 .big-number {
   font-size: 200px;
   font-weight: 900;
@@ -579,6 +586,43 @@ button:disabled {
   color: #94a3b8;
   letter-spacing: 0.08em;
   margin-top: 0;
+}
+
+.viewer-counter-list {
+  width: min(680px, 90%);
+  display: grid;
+  gap: 16px;
+  margin: 26px 0;
+}
+
+.viewer-counter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #dbeafe;
+  border-radius: 14px;
+  padding: 16px 24px;
+  background: #f8fafc;
+}
+
+.viewer-counter-label {
+  font-size: 2vw;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.viewer-counter-number {
+  font-size: 4vw;
+  font-family: "Inter", sans-serif;
+  color: var(--viewer-primary);
+}
+
+.viewer-grid.layout-2 .viewer-counter-label {
+  font-size: 1.3vw;
+}
+
+.viewer-grid.layout-2 .viewer-counter-number {
+  font-size: 2.6vw;
 }
 
 /* Stream selector trong toolbar */

@@ -96,13 +96,24 @@ function renderViewer() {
   viewerGridElement.innerHTML = selectedStreams
     .map((streamKey) => {
       const stream = viewerState.streams[streamKey];
+      const counters = Object.values(stream.counters || {});
+      const counterRows = counters
+        .map(
+          (counter) => `
+            <div class="viewer-counter-row">
+              <span class="viewer-counter-label">${counter.label}</span>
+              <strong class="viewer-counter-number">${formatNumber(counter.currentNumber || 0)}</strong>
+            </div>
+          `
+        )
+        .join("");
 
       return `
         <article class="viewer-panel">
           <p class="eyebrow">Khu Tiếp Nhận</p>
           <p class="viewer-stream-label">${stream.label}</p>
-          <h1 class="viewer-number">${formatNumber(stream.currentNumber)}</h1>
-          <p class="viewer-caption">Số thứ tự đang được gọi</p>
+          <div class="viewer-counter-list">${counterRows}</div>
+          <p class="viewer-caption">Số thứ tự đang được gọi theo từng quầy</p>
         </article>
       `;
     })
