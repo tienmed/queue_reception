@@ -2,12 +2,12 @@
   "streams": {
     "bhyt": {
       "label": "Bảo Hiểm Y Tế",
-      "nextNumber": 1,
+      "nextNumber": 10,
       "counters": {
         "quay1": {
           "label": "Quầy 1",
-          "currentNumber": 1,
-          "lastCalledAt": "2026-04-25T07:12:30.568Z"
+          "currentNumber": 10,
+          "lastCalledAt": "2026-04-25T07:15:13.251Z"
         },
         "quay2": {
           "label": "Quầy 2",
