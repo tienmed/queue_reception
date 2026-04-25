@@ -2,12 +2,16 @@ const currentNumberElement = document.getElementById("currentNumber");
 const activeStreamLabelElement = document.getElementById("activeStreamLabel");
 const incrementButton = document.getElementById("incrementButton");
 const announceButton = document.getElementById("announceButton");
-const setNumberForm = document.getElementById("setNumberForm");
+const setNumberBtn = document.getElementById("setNumberBtn");
 const setNumberInput = document.getElementById("setNumberInput");
-const announcementForm = document.getElementById("announcementForm");
+const saveTemplateBtn = document.getElementById("saveTemplateBtn");
 const announcementTemplateInput = document.getElementById("announcementTemplate");
 const previewTextElement = document.getElementById("previewText");
 const streamTabsElement = document.getElementById("streamTabs");
+const voiceSelect = document.getElementById("voiceSelect");
+const speedRange = document.getElementById("speedRange");
+const customText = document.getElementById("customText");
+const customAnnounceButton = document.getElementById("customAnnounceButton");
 
 const controlSocket = io();
 const streamOrder = ["bhyt", "thuPhi", "khamDoan"];
@@ -23,9 +27,11 @@ function getActiveStream() {
   return state.streams[activeStreamKey];
 }
 
-function buildAnnouncementText(template, number) {
-  const safeTemplate = template && template.trim() ? template.trim() : "Moi so thu tu {{number}} toi quay tiep nhan.";
-  return safeTemplate.replaceAll("{{number}}", formatNumber(number));
+function buildAnnouncementText(template, number, label) {
+  const safeTemplate = template && template.trim() ? template.trim() : "Mời khách hàng số {{number}} tới quầy {{quay}}.";
+  return safeTemplate
+    .replaceAll("{{number}}", formatNumber(number))
+    .replaceAll("{{quay}}", label || "tiếp nhận");
 }
 
 async function fetchAnnouncementAudio() {
@@ -34,11 +40,14 @@ async function fetchAnnouncementAudio() {
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ streamKey: activeStreamKey })
+    body: JSON.stringify({
+      streamKey: activeStreamKey,
+      voice: voiceSelect.value
+    })
   });
 
   if (!response.ok) {
-    throw new Error("TTS request failed");
+    throw new Error("Yêu cầu TTS thất bại");
   }
 
   return response.blob();
@@ -92,9 +101,10 @@ function renderControl() {
   currentNumberElement.textContent = formatNumber(activeStream.currentNumber);
   setNumberInput.value = String(activeStream.currentNumber);
   announcementTemplateInput.value = activeStream.announcementTemplate;
-  previewTextElement.textContent = `Xem truoc: ${buildAnnouncementText(
+  previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
     activeStream.announcementTemplate,
-    activeStream.currentNumber
+    activeStream.currentNumber,
+    activeStream.label
   )}`;
   renderStreamTabs();
 }
@@ -119,23 +129,44 @@ async function postJson(url, payload) {
   });
 
   if (!response.ok) {
-    throw new Error("Request failed");
+    throw new Error("Yêu cầu không thành công");
   }
 
   return response.json();
 }
 
 async function incrementNumber() {
+  if (incrementButton.disabled) return;
   incrementButton.disabled = true;
 
   try {
     await postJson("/api/increment", { streamKey: activeStreamKey });
+  } catch (err) {
+    console.error("Lỗi tăng số:", err);
+    window.alert("Không thể tăng số. Vui lòng thử lại.");
   } finally {
     incrementButton.disabled = false;
   }
 }
 
-function speakCurrentAnnouncement() {
+async function playSampleThenSpeak() {
+  if (announceButton.disabled) return;
+  announceButton.disabled = true;
+
+  try {
+    try {
+      const audioBlob = await fetchAnnouncementAudio();
+      await playAudioBlob(audioBlob);
+    } catch (err) {
+      console.error("TTS lỗi, thử dùng API trình duyệt:", err);
+      await speakBrowserside();
+    }
+  } finally {
+    announceButton.disabled = false;
+  }
+}
+
+function speakBrowserside() {
   return new Promise((resolve) => {
     const activeStream = getActiveStream();
     const synth = window.speechSynthesis;
@@ -145,12 +176,13 @@ function speakCurrentAnnouncement() {
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(
-      buildAnnouncementText(activeStream.announcementTemplate, activeStream.currentNumber)
+    const text = buildAnnouncementText(
+      activeStream.announcementTemplate,
+      activeStream.currentNumber,
+      activeStream.label
     );
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "vi-VN";
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
     utterance.onend = resolve;
     utterance.onerror = resolve;
 
@@ -165,52 +197,12 @@ function speakCurrentAnnouncement() {
   });
 }
 
-async function playSampleThenSpeak() {
-  announceButton.disabled = true;
-
-  try {
-    const sampleAudio = new Audio("/audio/sample-announcement.mp3");
-
-    await new Promise((resolve) => {
-      let finished = false;
-
-      function done() {
-        if (!finished) {
-          finished = true;
-          resolve();
-        }
-      }
-
-      sampleAudio.addEventListener("ended", done, { once: true });
-      sampleAudio.addEventListener("error", done, { once: true });
-
-      const playPromise = sampleAudio.play();
-      if (playPromise && typeof playPromise.then === "function") {
-        playPromise.catch(done);
-      }
-
-      setTimeout(done, 5000);
-    });
-
-    try {
-      const audioBlob = await fetchAnnouncementAudio();
-      await playAudioBlob(audioBlob);
-    } catch (_error) {
-      await speakCurrentAnnouncement();
-    }
-  } finally {
-    announceButton.disabled = false;
-  }
-}
-
-async function setNumber(event) {
-  event.preventDefault();
-
+async function handleSetNumber() {
   const activeStream = getActiveStream();
   const nextValue = Number.parseInt(setNumberInput.value, 10);
 
   if (!activeStream || !Number.isInteger(nextValue) || nextValue < 0) {
-    window.alert("Vui long nhap so hop le.");
+    window.alert("Vui lòng nhập số hợp lệ.");
     return;
   }
 
@@ -221,17 +213,13 @@ async function setNumber(event) {
       announcementTemplate: announcementTemplateInput.value
     });
   } catch (_error) {
-    window.alert("Khong cap nhat duoc so.");
+    window.alert("Không cập nhật được số.");
   }
 }
 
-async function saveAnnouncementTemplate(event) {
-  event.preventDefault();
-
+async function saveAnnouncementTemplate() {
   const activeStream = getActiveStream();
-  if (!activeStream) {
-    return;
-  }
+  if (!activeStream) return;
 
   try {
     await postJson("/api/state", {
@@ -239,26 +227,59 @@ async function saveAnnouncementTemplate(event) {
       currentNumber: activeStream.currentNumber,
       announcementTemplate: announcementTemplateInput.value
     });
+    window.alert("Đã lưu mẫu câu thành công!");
   } catch (_error) {
-    window.alert("Khong luu duoc cau doc.");
+    window.alert("Không lưu được mẫu câu.");
+  }
+}
+
+async function announceCustomText() {
+  const text = customText.value;
+  if (!text || !text.trim()) {
+    window.alert("Vui lòng nhập nội dung cần phát loa.");
+    return;
+  }
+
+  customAnnounceButton.disabled = true;
+  try {
+    const response = await fetch("/api/announce-custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: text.trim(),
+        voice: voiceSelect.value
+      })
+    });
+
+    if (!response.ok) throw new Error("Custom TTS failed");
+
+    const audioBlob = await response.blob();
+    await playAudioBlob(audioBlob);
+  } catch (error) {
+    console.error("Lỗi phát loa tùy chỉnh:", error);
+    window.alert("Không thể phát loa nội dung này.");
+  } finally {
+    customAnnounceButton.disabled = false;
   }
 }
 
 incrementButton.addEventListener("click", incrementNumber);
 announceButton.addEventListener("click", playSampleThenSpeak);
-setNumberForm.addEventListener("submit", setNumber);
-announcementForm.addEventListener("submit", saveAnnouncementTemplate);
+customAnnounceButton.addEventListener("click", announceCustomText);
+setNumberBtn.addEventListener("click", handleSetNumber);
+saveTemplateBtn.addEventListener("click", saveAnnouncementTemplate);
+
 announcementTemplateInput.addEventListener("input", () => {
   const activeStream = getActiveStream();
-  if (!activeStream) {
-    return;
-  }
+  if (!activeStream) return;
 
-  previewTextElement.textContent = `Xem truoc: ${buildAnnouncementText(
+  previewTextElement.textContent = `Xem trước: ${buildAnnouncementText(
     announcementTemplateInput.value,
-    activeStream.currentNumber
+    activeStream.currentNumber,
+    activeStream.label
   )}`;
 });
+
 controlSocket.on("queue:update", updateControl);
 
 fetch("/api/state")

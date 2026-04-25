@@ -2,13 +2,17 @@
   "name": "queue-display",
   "version": "1.0.0",
   "description": "Man hinh cho khu tiep nhan voi viewer va control",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node app.js",
+    "dev": "nodemon app.js"
   },
   "dependencies": {
     "express": "^5.1.0",
     "google-tts-api": "^2.0.2",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }

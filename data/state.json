@@ -1,19 +1,19 @@
 {
   "streams": {
     "bhyt": {
-      "label": "BHYT",
-      "currentNumber": 4,
-      "announcementTemplate": "mời số thứ tự {{number}} tới quầy tiếp nhận Bảo hiểm Y tế."
+      "label": "Bảo Hiểm Y Tế",
+      "currentNumber": 7,
+      "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Tiếp Nhận Bảo Hiểm Y Tế."
     },
     "thuPhi": {
-      "label": "Thu phi",
-      "currentNumber": 4,
-      "announcementTemplate": "Moi so thu tu {{number}} toi quay thu phi."
+      "label": "Thu Phí",
+      "currentNumber": 5,
+      "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Thu Phí."
     },
     "khamDoan": {
-      "label": "Kham doan",
+      "label": "Khám Đoàn",
       "currentNumber": 4,
-      "announcementTemplate": "Moi so thu tu {{number}} toi quay kham doan."
+      "announcementTemplate": "Mời số thứ tự {{number}} tới quầy Khám Đoàn."
     }
   }
 }

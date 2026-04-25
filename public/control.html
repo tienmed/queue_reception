@@ -1,74 +1,99 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Man hinh cho - Dieu khien</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main class="page control-page">
-      <section class="control-card">
-        <header class="control-header">
-          <div>
-            <p class="eyebrow">Bang dieu khien</p>
-            <h1 class="control-title">Quan ly 3 luong so thu tu</h1>
-            <p class="control-subtitle">
-              Chon luong can dieu khien, tang so, doi cau phat loa, va dong bo sang man hinh nguoi xem theo thoi gian thuc.
-            </p>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Điều Khiển Gọi Số - QueueReception</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+  <main class="control-layout">
+    <section class="control-main">
+      <header class="main-header">
+        <h1>Hệ Thống Gọi Số Thông Minh</h1>
+        <div class="status-indicator">Trực Tuyến</div>
+      </header>
+
+      <div class="viewer-emulator">
+        <h2 id="activeStreamLabel">Phòng Khám BHYT</h2>
+        <div class="big-number" id="currentNumber">000</div>
+        <div class="viewer-hint">SỐ HIỆN TẠI</div>
+      </div>
+
+      <div class="primary-actions">
+        <button class="btn-mega btn-primary" id="incrementButton">
+          <i data-lucide="user-plus" class="icon-lg"></i>
+          <span class="text">Gọi Số Tiếp Theo</span>
+        </button>
+        <button class="btn-mega btn-outline" id="announceButton">
+          <i data-lucide="megaphone" class="icon-lg"></i>
+          <span class="text">Phát Loa Gọi Số</span>
+        </button>
+      </div>
+    </section>
+
+    <aside class="control-config">
+      <div class="config-scroll-area">
+        <div class="panel">
+          <h3>Luồng Phục Vụ</h3>
+          <div class="segment-control" id="streamTabs"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Thiết Lập Thông Báo</h3>
+          <div class="field">
+            <label>Mẫu câu gọi số ({{number}}, {{quay}})</label>
+            <textarea id="announcementTemplate" rows="3" placeholder="Xin mời số {{number}} đến {{quay}}..."></textarea>
+            <div class="preview" id="previewText">Xem trước: ...</div>
+            <button class="btn-save" id="saveTemplateBtn">Cập Nhật Mẫu</button>
           </div>
-          <div class="status-pill">Realtime</div>
-        </header>
+        </div>
 
-        <section class="control-grid">
-          <article class="panel">
-            <h2>Chon luong dieu khien</h2>
-            <div class="segment-control stream-tabs" id="streamTabs"></div>
-
-            <h2 class="spaced-title">So dang hien</h2>
-            <p class="stream-label-large" id="activeStreamLabel">BHYT</p>
-            <p class="current-number" id="currentNumber">000</p>
-            <p class="muted">So nay se hien thi ngay lap tuc o man hinh nguoi xem.</p>
-
-            <div class="button-group">
-              <button class="primary-btn" id="incrementButton" type="button">Tang len so tiep theo</button>
-              <button class="secondary-btn" id="announceButton" type="button">Phat loa cau mau + so hien tai</button>
+        <div class="panel">
+          <h3>Giọng Nói & Âm Thanh</h3>
+          <div class="field-row">
+            <div class="field">
+              <label>Giọng đọc</label>
+              <select id="voiceSelect">
+                <option value="Bích Ngọc (Nữ - Miền Bắc)">Bích Ngọc (Bắc)</option>
+                <option value="Xuân Vĩnh (Nam - Miền Nam)">Xuân Vĩnh (Nam)</option>
+              </select>
             </div>
-          </article>
-
-          <article class="panel">
-            <h2>Noi dung phat loa</h2>
-            <p class="muted">Nhap cau tieng Viet va dung <strong>{{number}}</strong> de chen so thu tu dang hien.</p>
-
-            <form id="announcementForm">
-              <textarea id="announcementTemplate" rows="5" placeholder="Moi so thu tu {{number}} toi quay tiep nhan."></textarea>
-              <div class="button-row">
-                <button class="secondary-btn" type="submit">Luu cau doc</button>
-              </div>
-            </form>
-
-            <div class="hint" id="previewText"></div>
-          </article>
-
-          <article class="panel">
-            <h2>Chinh so thu cong</h2>
-            <p class="muted">Dung khi can dong bo nhanh theo tinh huong thuc te tai quay tiep nhan.</p>
-
-            <form class="inline-form" id="setNumberForm">
-              <input type="number" min="0" step="1" id="setNumberInput" placeholder="Nhap so thu tu" />
-              <button class="secondary-btn" type="submit">Cap nhat</button>
-            </form>
-
-            <div class="hint">
-              Nut phat loa se co gang phat file <strong>/audio/sample-announcement.mp3</strong> truoc, sau do doc cau da
-              nhap cua luong dang chon.
+            <div class="field">
+              <label>Tốc độ</label>
+              <input type="range" min="0.5" max="2" step="0.1" value="1" id="speedRange" class="slider" />
             </div>
-          </article>
-        </section>
-      </section>
-    </main>
+          </div>
+          <div class="field">
+            <label>Hiệu chỉnh số thủ công</label>
+            <div class="inline-input">
+              <input type="number" id="setNumberInput" min="0" value="0" />
+              <button id="setNumberBtn">Đặt Lại</button>
+            </div>
+          </div>
+        </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/control.js"></script>
-  </body>
+        <div class="panel highlight">
+          <h3>Thông Báo Tùy Chỉnh</h3>
+          <div class="field">
+            <textarea id="customText" rows="2" placeholder="Nhập nội dung thông báo khẩn cấp..."></textarea>
+            <button class="btn-custom" id="customAnnounceButton">Phát Thông Báo</button>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
+  <script src="/control.js"></script>
+</body>
+
 </html>

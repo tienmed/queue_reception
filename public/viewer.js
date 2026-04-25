@@ -99,10 +99,10 @@ function renderViewer() {
 
       return `
         <article class="viewer-panel">
-          <p class="eyebrow">Khu tiep nhan</p>
+          <p class="eyebrow">Khu Tiếp Nhận</p>
           <p class="viewer-stream-label">${stream.label}</p>
           <h1 class="viewer-number">${formatNumber(stream.currentNumber)}</h1>
-          <p class="viewer-caption">So thu tu dang duoc goi</p>
+          <p class="viewer-caption">Số thứ tự đang được gọi</p>
         </article>
       `;
     })

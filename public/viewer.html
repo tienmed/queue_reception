@@ -1,39 +1,36 @@
 <!DOCTYPE html>
 <html lang="vi">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Man hinh cho - Nguoi xem</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <aside class="viewer-clock" id="viewerClock">
-      <div class="viewer-clock-time" id="clockTime">00:00:00</div>
-      <div class="viewer-clock-date" id="clockDate">--/--/----</div>
-    </aside>
 
-    <main class="page viewer-page">
-      <section class="viewer-toolbar">
-        <div class="toolbar-block">
-          <span class="toolbar-label">Che do hien thi</span>
-          <div class="segment-control">
-            <button class="segment-btn active" type="button" data-layout="1">1 man hinh</button>
-            <button class="segment-btn" type="button" data-layout="2">2 man hinh</button>
-          </div>
-        </div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Màn Hình Hiển Thị - QueueReception</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
 
-        <div class="toolbar-block">
-          <span class="toolbar-label">Chon luong hien thi</span>
-          <div class="stream-selector" id="streamSelector"></div>
-        </div>
-      </section>
+<body class="viewer-body">
+  <!-- Thanh điều khiển nhỏ gọn -->
+  <nav class="viewer-nav">
+    <div class="nav-left">
+      <div class="segment-control">
+        <button class="segment-btn active" type="button" data-layout="1">1 Luồng</button>
+        <button class="segment-btn" type="button" data-layout="2">2 Luồng</button>
+      </div>
+      <div class="stream-selector" id="streamSelector"></div>
+    </div>
+    <div class="nav-right" id="viewerClock">
+      <span class="nav-time" id="clockTime">00:00:00</span>
+      <span class="nav-date" id="clockDate">Đang cập nhật...</span>
+    </div>
+  </nav>
 
-      <section class="viewer-card">
-        <div class="viewer-grid layout-1" id="viewerGrid"></div>
-      </section>
-    </main>
+  <!-- Khu vực hiển thị chính - chiếm toàn bộ màn hình -->
+  <main class="viewer-main">
+    <div class="viewer-grid layout-1" id="viewerGrid"></div>
+  </main>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/viewer.js"></script>
-  </body>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/viewer.js"></script>
+</body>
+
 </html>
