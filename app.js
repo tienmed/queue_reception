@@ -158,6 +158,10 @@ function buildAnnouncementText(template, currentNumber, label = "tiếp nhận")
     .replaceAll("{{quay}}", label);
 }
 
+function buildStreamAnnouncementText(stream, number) {
+  return buildAnnouncementText(stream.announcementTemplate, number, stream.label);
+}
+
 // Hàm tổng hợp giọng nói tiếng Việt
 async function synthesizeVietnameseSpeech(text, options = {}) {
   await ensureTtsCacheDir();
@@ -225,6 +229,29 @@ async function synthesizeVietnameseSpeech(text, options = {}) {
   }
 }
 
+async function prewarmNextAnnouncement(stream, voice) {
+  const nextNumber = stream.currentNumber + 1;
+  const nextText = buildStreamAnnouncementText(stream, nextNumber);
+  const nextVoice = voice || "Bích Ngọc (Nữ - Miền Bắc)";
+  const cacheKey = buildTtsCacheKey(nextText, nextVoice);
+
+  if (ttsMemoryCache.has(cacheKey) || pendingTtsJobs.has(cacheKey)) {
+    return;
+  }
+
+  await ensureTtsCacheDir();
+  const cachePath = path.join(ttsCacheDir, `${cacheKey}.wav`);
+  const existingCache = await readCacheFile(cachePath);
+  if (existingCache) {
+    rememberTtsBuffer(cacheKey, existingCache);
+    return;
+  }
+
+  synthesizeVietnameseSpeech(nextText, { voice: nextVoice }).catch((error) => {
+    console.error("Không thể prewarm TTS cho số tiếp theo:", error);
+  });
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -261,6 +288,36 @@ app.post("/api/increment", (req, res) => {
   writeState(queueState);
   broadcastState();
   res.json(queueState);
+});
+
+// API tăng số, phát thông báo số mới và prewarm âm thanh cho số kế tiếp
+app.post("/api/increment-and-announce", async (req, res) => {
+  try {
+    const { streamKey, voice } = req.body;
+    const stream = queueState.streams[streamKey];
+
+    if (!stream) {
+      res.status(400).json({ message: "Luồng không hợp lệ." });
+      return;
+    }
+
+    stream.currentNumber += 1;
+    writeState(queueState);
+    broadcastState();
+
+    const currentText = buildStreamAnnouncementText(stream, stream.currentNumber);
+    const audioBufferPromise = synthesizeVietnameseSpeech(currentText, { voice });
+
+    void prewarmNextAnnouncement(stream, voice);
+
+    const audioBuffer = await audioBufferPromise;
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "no-store");
+    res.send(audioBuffer);
+  } catch (error) {
+    console.error("Lỗi tăng số + phát loa:", error);
+    res.status(500).json({ message: "Không thể tăng số và phát loa." });
+  }
 });
 
 // API cập nhật trạng thái luồng cụ thể
@@ -301,7 +358,7 @@ app.post("/api/announce", async (req, res) => {
       return;
     }
 
-    const text = buildAnnouncementText(stream.announcementTemplate, stream.currentNumber, stream.label);
+    const text = buildStreamAnnouncementText(stream, stream.currentNumber);
     const audioBuffer = await synthesizeVietnameseSpeech(text, { voice });
 
     res.setHeader("Content-Type", "audio/mpeg");

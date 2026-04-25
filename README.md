@@ -27,6 +27,12 @@ Moi luong co the dat cau doc rieng, vi du:
 
 He thong se thay `{{number}}` bang so dang hien cua luong duoc chon, sau do doc bang `SpeechSynthesis`.
 
+Nut **Tang so** tren trang `/control` hien tai se:
+
+- Tang so thu tu dang hien thi.
+- Phat ngay am thanh goi cho so vua tang.
+- Tu dong prewarm (tao san cache) audio cho **so tiep theo** neu chua ton tai.
+
 ## Goi y phat trien tiep theo
 
 ### 1) Toi uu hieu nang va do on dinh

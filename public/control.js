@@ -140,10 +140,26 @@ async function incrementNumber() {
   incrementButton.disabled = true;
 
   try {
-    await postJson("/api/increment", { streamKey: activeStreamKey });
+    const response = await fetch("/api/increment-and-announce", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        streamKey: activeStreamKey,
+        voice: voiceSelect.value
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Yêu cầu tăng số + phát loa thất bại");
+    }
+
+    const audioBlob = await response.blob();
+    await playAudioBlob(audioBlob);
   } catch (err) {
-    console.error("Lỗi tăng số:", err);
-    window.alert("Không thể tăng số. Vui lòng thử lại.");
+    console.error("Lỗi tăng số và phát loa:", err);
+    window.alert("Không thể tăng số hoặc phát loa. Vui lòng thử lại.");
   } finally {
     incrementButton.disabled = false;
   }
