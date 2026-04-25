@@ -33,6 +33,14 @@ Nut **Tang so** tren trang `/control` hien tai se:
 - Phat ngay am thanh goi cho so vua tang.
 - Tu dong prewarm (tao san cache) audio cho **so tiep theo** neu chua ton tai.
 
+## Mo hinh luong/quay
+
+- Moi luong co san 3 quay (`Quay 1`, `Quay 2`, `Quay 3`).
+- Tai trang control, nguoi dung chon **luong** va **quay** truoc khi bam goi so.
+- So thu tu duoc phan bo tang dan theo tung luong (`nextNumber`) va gan vao quay dang chon.
+- Man hinh viewer hien thi dong thoi so dang goi cua tung quay de biet so dang o quay nao.
+- Log goi so duoc luu trong bo nho theo ngay (API: `GET /api/logs`) va tu dong xoa khi sang ngay moi.
+
 ## Goi y phat trien tiep theo
 
 ### 1) Toi uu hieu nang va do on dinh

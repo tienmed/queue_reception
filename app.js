@@ -23,17 +23,32 @@ const defaultState = {
   streams: {
     bhyt: {
       label: "Bảo Hiểm Y Tế",
-      currentNumber: 0,
+      nextNumber: 0,
+      counters: {
+        quay1: { label: "Quầy 1", currentNumber: 0, lastCalledAt: null },
+        quay2: { label: "Quầy 2", currentNumber: 0, lastCalledAt: null },
+        quay3: { label: "Quầy 3", currentNumber: 0, lastCalledAt: null }
+      },
       announcementTemplate: "Mời số thứ tự {{number}} tới quầy tiếp nhận Bảo hiểm Y tế."
     },
     thuPhi: {
       label: "Thu Phí",
-      currentNumber: 0,
+      nextNumber: 0,
+      counters: {
+        quay1: { label: "Quầy 1", currentNumber: 0, lastCalledAt: null },
+        quay2: { label: "Quầy 2", currentNumber: 0, lastCalledAt: null },
+        quay3: { label: "Quầy 3", currentNumber: 0, lastCalledAt: null }
+      },
       announcementTemplate: "Mời số thứ tự {{number}} tới quầy Thu Phí."
     },
     khamDoan: {
       label: "Khám Đoàn",
-      currentNumber: 0,
+      nextNumber: 0,
+      counters: {
+        quay1: { label: "Quầy 1", currentNumber: 0, lastCalledAt: null },
+        quay2: { label: "Quầy 2", currentNumber: 0, lastCalledAt: null },
+        quay3: { label: "Quầy 3", currentNumber: 0, lastCalledAt: null }
+      },
       announcementTemplate: "Mời số thứ tự {{number}} tới quầy Khám Đoàn."
     }
   }
@@ -54,17 +69,33 @@ function normalizeState(rawState) {
 
   if (!rawState.streams || typeof rawState.streams !== "object") {
     if (Number.isInteger(rawState.currentNumber)) {
-      nextState.streams.bhyt.currentNumber = rawState.currentNumber;
+      nextState.streams.bhyt.nextNumber = rawState.currentNumber;
+      nextState.streams.bhyt.counters.quay1.currentNumber = rawState.currentNumber;
     }
     return nextState;
   }
 
   for (const [streamKey, streamDefaults] of Object.entries(nextState.streams)) {
     const rawStream = rawState.streams[streamKey] || {};
+    const fallbackCurrentNumber = Number.isInteger(rawStream.currentNumber) ? rawStream.currentNumber : streamDefaults.nextNumber;
+    const nextNumber = Number.isInteger(rawStream.nextNumber) ? rawStream.nextNumber : fallbackCurrentNumber;
+
+    const normalizedCounters = {};
+    for (const [counterKey, counterDefaults] of Object.entries(streamDefaults.counters)) {
+      const rawCounter = rawStream.counters?.[counterKey] || {};
+      const fallbackCounterNumber = counterKey === "quay1" ? nextNumber : counterDefaults.currentNumber;
+      normalizedCounters[counterKey] = {
+        label:
+          typeof rawCounter.label === "string" && rawCounter.label.trim() ? rawCounter.label.trim() : counterDefaults.label,
+        currentNumber: Number.isInteger(rawCounter.currentNumber) ? rawCounter.currentNumber : fallbackCounterNumber,
+        lastCalledAt: typeof rawCounter.lastCalledAt === "string" && rawCounter.lastCalledAt ? rawCounter.lastCalledAt : null
+      };
+    }
 
     nextState.streams[streamKey] = {
       label: typeof rawStream.label === "string" && rawStream.label.trim() ? rawStream.label.trim() : streamDefaults.label,
-      currentNumber: Number.isInteger(rawStream.currentNumber) ? rawStream.currentNumber : streamDefaults.currentNumber,
+      nextNumber,
+      counters: normalizedCounters,
       announcementTemplate:
         typeof rawStream.announcementTemplate === "string" && rawStream.announcementTemplate.trim()
           ? rawStream.announcementTemplate.trim()
@@ -110,6 +141,33 @@ const ttsMemoryCache = new Map();
 const pendingTtsJobs = new Map();
 const TTS_CACHE_LIMIT = 100;
 let ensureTtsCacheDirPromise = null;
+let callLogs = [];
+let callLogDateKey = new Date().toISOString().slice(0, 10);
+
+function getDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function ensureDailyLogWindow() {
+  const today = getDateKey();
+  if (today !== callLogDateKey) {
+    callLogs = [];
+    callLogDateKey = today;
+  }
+}
+
+function addCallLog(entry) {
+  ensureDailyLogWindow();
+  callLogs.unshift({
+    id: crypto.randomUUID(),
+    calledAt: new Date().toISOString(),
+    ...entry
+  });
+
+  if (callLogs.length > 1000) {
+    callLogs.length = 1000;
+  }
+}
 
 function ensureTtsCacheDir() {
   if (!ensureTtsCacheDirPromise) {
@@ -158,8 +216,9 @@ function buildAnnouncementText(template, currentNumber, label = "tiếp nhận")
     .replaceAll("{{quay}}", label);
 }
 
-function buildStreamAnnouncementText(stream, number) {
-  return buildAnnouncementText(stream.announcementTemplate, number, stream.label);
+function buildStreamAnnouncementText(stream, number, counterLabel) {
+  const label = counterLabel || stream.label;
+  return buildAnnouncementText(stream.announcementTemplate, number, label);
 }
 
 // Hàm tổng hợp giọng nói tiếng Việt
@@ -229,9 +288,9 @@ async function synthesizeVietnameseSpeech(text, options = {}) {
   }
 }
 
-async function prewarmNextAnnouncement(stream, voice) {
-  const nextNumber = stream.currentNumber + 1;
-  const nextText = buildStreamAnnouncementText(stream, nextNumber);
+async function prewarmNextAnnouncement(stream, voice, counterLabel) {
+  const nextNumber = stream.nextNumber + 1;
+  const nextText = buildStreamAnnouncementText(stream, nextNumber, counterLabel);
   const nextVoice = voice || "Bích Ngọc (Nữ - Miền Bắc)";
   const cacheKey = buildTtsCacheKey(nextText, nextVoice);
 
@@ -275,16 +334,36 @@ app.get("/api/state", (_req, res) => {
   res.json(queueState);
 });
 
+app.get("/api/logs", (_req, res) => {
+  ensureDailyLogWindow();
+  res.json({
+    date: callLogDateKey,
+    logs: callLogs
+  });
+});
+
 // API tăng số thứ tự
 app.post("/api/increment", (req, res) => {
-  const { streamKey } = req.body;
+  const { streamKey, counterKey = "quay1" } = req.body;
+  const stream = queueState.streams[streamKey];
+  const counter = stream?.counters?.[counterKey];
 
-  if (!queueState.streams[streamKey]) {
+  if (!stream || !counter) {
     res.status(400).json({ message: "Luồng không hợp lệ." });
     return;
   }
 
-  queueState.streams[streamKey].currentNumber += 1;
+  stream.nextNumber += 1;
+  counter.currentNumber = stream.nextNumber;
+  counter.lastCalledAt = new Date().toISOString();
+  addCallLog({
+    streamKey,
+    streamLabel: stream.label,
+    counterKey,
+    counterLabel: counter.label,
+    number: stream.nextNumber
+  });
+
   writeState(queueState);
   broadcastState();
   res.json(queueState);
@@ -293,22 +372,33 @@ app.post("/api/increment", (req, res) => {
 // API tăng số, phát thông báo số mới và prewarm âm thanh cho số kế tiếp
 app.post("/api/increment-and-announce", async (req, res) => {
   try {
-    const { streamKey, voice } = req.body;
+    const { streamKey, counterKey = "quay1", voice } = req.body;
     const stream = queueState.streams[streamKey];
+    const counter = stream?.counters?.[counterKey];
 
-    if (!stream) {
+    if (!stream || !counter) {
       res.status(400).json({ message: "Luồng không hợp lệ." });
       return;
     }
 
-    stream.currentNumber += 1;
+    stream.nextNumber += 1;
+    counter.currentNumber = stream.nextNumber;
+    counter.lastCalledAt = new Date().toISOString();
+    addCallLog({
+      streamKey,
+      streamLabel: stream.label,
+      counterKey,
+      counterLabel: counter.label,
+      number: stream.nextNumber
+    });
+
     writeState(queueState);
     broadcastState();
 
-    const currentText = buildStreamAnnouncementText(stream, stream.currentNumber);
+    const currentText = buildStreamAnnouncementText(stream, stream.nextNumber, counter.label);
     const audioBufferPromise = synthesizeVietnameseSpeech(currentText, { voice });
 
-    void prewarmNextAnnouncement(stream, voice);
+    void prewarmNextAnnouncement(stream, voice, counter.label);
 
     const audioBuffer = await audioBufferPromise;
     res.setHeader("Content-Type", "audio/mpeg");
@@ -322,10 +412,11 @@ app.post("/api/increment-and-announce", async (req, res) => {
 
 // API cập nhật trạng thái luồng cụ thể
 app.post("/api/state", (req, res) => {
-  const { streamKey, currentNumber, announcementTemplate } = req.body;
+  const { streamKey, counterKey = "quay1", currentNumber, announcementTemplate } = req.body;
   const stream = queueState.streams[streamKey];
+  const counter = stream?.counters?.[counterKey];
 
-  if (!stream) {
+  if (!stream || !counter) {
     res.status(400).json({ message: "Luồng không hợp lệ." });
     return;
   }
@@ -336,7 +427,8 @@ app.post("/api/state", (req, res) => {
     return;
   }
 
-  stream.currentNumber = nextNumber;
+  stream.nextNumber = nextNumber;
+  counter.currentNumber = nextNumber;
 
   if (typeof announcementTemplate === "string" && announcementTemplate.trim()) {
     stream.announcementTemplate = announcementTemplate.trim();
@@ -350,15 +442,16 @@ app.post("/api/state", (req, res) => {
 // API gọi thông báo TTS (Dựa trên câu mẫu)
 app.post("/api/announce", async (req, res) => {
   try {
-    const { streamKey, voice } = req.body;
+    const { streamKey, counterKey = "quay1", voice } = req.body;
     const stream = queueState.streams[streamKey];
+    const counter = stream?.counters?.[counterKey];
 
-    if (!stream) {
+    if (!stream || !counter) {
       res.status(400).json({ message: "Luồng không hợp lệ." });
       return;
     }
 
-    const text = buildStreamAnnouncementText(stream, stream.currentNumber);
+    const text = buildStreamAnnouncementText(stream, counter.currentNumber, counter.label);
     const audioBuffer = await synthesizeVietnameseSpeech(text, { voice });
 
     res.setHeader("Content-Type", "audio/mpeg");
