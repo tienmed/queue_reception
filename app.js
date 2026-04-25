@@ -2,6 +2,9 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
 const { Server } = require("socket.io");
 
 const app = express();
@@ -11,6 +14,8 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const dataDir = path.join(__dirname, "data");
 const stateFile = path.join(dataDir, "state.json");
+const ttsCacheDir = path.join(__dirname, "data", "tts-cache");
+const execFileAsync = promisify(execFile);
 
 // Các tùy chọn mặc định cho TTS (nếu dùng Google làm dự phòng)
 const ttsOptions = {
@@ -108,6 +113,31 @@ function writeState(nextState) {
 }
 
 let queueState = readState();
+const ttsMemoryCache = new Map();
+const pendingTtsJobs = new Map();
+const TTS_CACHE_LIMIT = 100;
+
+function ensureTtsCacheDir() {
+  if (!fs.existsSync(ttsCacheDir)) {
+    fs.mkdirSync(ttsCacheDir, { recursive: true });
+  }
+}
+
+function buildTtsCacheKey(text, voice) {
+  return crypto.createHash("sha1").update(`${voice || ""}::${text}`).digest("hex");
+}
+
+function rememberTtsBuffer(cacheKey, audioBuffer) {
+  if (ttsMemoryCache.has(cacheKey)) {
+    ttsMemoryCache.delete(cacheKey);
+  }
+  ttsMemoryCache.set(cacheKey, audioBuffer);
+
+  if (ttsMemoryCache.size > TTS_CACHE_LIMIT) {
+    const firstKey = ttsMemoryCache.keys().next().value;
+    ttsMemoryCache.delete(firstKey);
+  }
+}
 
 // Phát thông báo cập nhật trạng thái qua Socket.io
 function broadcastState() {
@@ -126,41 +156,68 @@ function buildAnnouncementText(template, currentNumber, label = "tiếp nhận")
 
 // Hàm tổng hợp giọng nói tiếng Việt
 async function synthesizeVietnameseSpeech(text, options = {}) {
-  const { execSync } = require("child_process");
-  const ttsOutputPath = path.join(__dirname, "public", "tts_output.wav");
-  const pythonPath = `C:\\Users\\Thinkpad X280\\AppData\\Local\\Programs\\Python\\Python311\\python.exe`;
+  ensureTtsCacheDir();
   const bridgePath = path.join(__dirname, "tts_bridge.py");
-
   const voice = options.voice || "Bích Ngọc (Nữ - Miền Bắc)";
+  const cacheKey = buildTtsCacheKey(text, voice);
+  const cachePath = path.join(ttsCacheDir, `${cacheKey}.wav`);
+  const pythonPath = process.env.TTS_PYTHON_PATH || "python";
+
+  if (ttsMemoryCache.has(cacheKey)) {
+    return ttsMemoryCache.get(cacheKey);
+  }
+
+  if (fs.existsSync(cachePath)) {
+    const cachedBuffer = fs.readFileSync(cachePath);
+    rememberTtsBuffer(cacheKey, cachedBuffer);
+    return cachedBuffer;
+  }
+
+  if (pendingTtsJobs.has(cacheKey)) {
+    return pendingTtsJobs.get(cacheKey);
+  }
+
+  const ttsJob = (async () => {
+    try {
+      await execFileAsync(
+        pythonPath,
+        [bridgePath, text, "--output", cachePath, "--voice", voice],
+        { timeout: 30000 }
+      );
+
+      if (fs.existsSync(cachePath)) {
+        const audioBuffer = fs.readFileSync(cachePath);
+        rememberTtsBuffer(cacheKey, audioBuffer);
+        return audioBuffer;
+      }
+
+      throw new Error("Không tìm thấy file output TTS");
+    } catch (error) {
+      console.error("VieNeu-TTS thất bại, đang chuyển sang Google TTS:", error);
+
+      try {
+        const googleTts = require("google-tts-api");
+        const audioBase64 = await googleTts.getAudioBase64(text, {
+          lang: "vi",
+          slow: false,
+          timeout: 15000
+        });
+        const audioBuffer = Buffer.from(audioBase64, "base64");
+        rememberTtsBuffer(cacheKey, audioBuffer);
+        return audioBuffer;
+      } catch (googleError) {
+        console.error("Cả VieNeu-TTS và Google TTS đều thất bại:", googleError);
+        throw googleError;
+      }
+    }
+  })();
+
+  pendingTtsJobs.set(cacheKey, ttsJob);
 
   try {
-    // Chạy script bridge Python để tạo audio TTS chất lượng cao (VieNeu-TTS)
-    // Lưu ý: Lần chạy đầu tiên có thể chậm do phải tải model
-    execSync(`& "${pythonPath}" "${bridgePath}" "${text}" --output "${ttsOutputPath}" --voice "${voice}"`, {
-      shell: "powershell",
-      timeout: 30000 // Hết hạn sau 30 giây
-    });
-
-    if (fs.existsSync(ttsOutputPath)) {
-      return fs.readFileSync(ttsOutputPath);
-    }
-    throw new Error("Không tìm thấy file output TTS");
-  } catch (error) {
-    console.error("VieNeu-TTS thất bại, đang chuyển sang Google TTS:", error);
-
-    // Dự phòng sang Google TTS nếu VieNeu-TTS lỗi
-    try {
-      const googleTts = require("google-tts-api");
-      const audioBase64 = await googleTts.getAudioBase64(text, {
-        lang: "vi",
-        slow: false,
-        timeout: 15000
-      });
-      return Buffer.from(audioBase64, "base64");
-    } catch (googleError) {
-      console.error("Cả VieNeu-TTS và Google TTS đều thất bại:", googleError);
-      throw googleError;
-    }
+    return await ttsJob;
+  } finally {
+    pendingTtsJobs.delete(cacheKey);
   }
 }
 
