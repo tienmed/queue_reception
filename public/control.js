@@ -268,6 +268,17 @@ function updateControl(nextState) {
   }
 
   renderControl();
+  prefetchNextAnnouncementAudio();
+}
+
+function applyLocalCalledNumber(nextNumber) {
+  const activeStream = getActiveStream();
+  const activeCounter = getActiveCounter();
+  if (!activeStream || !activeCounter || !Number.isInteger(nextNumber) || nextNumber < 0) return;
+
+  activeStream.nextNumber = nextNumber;
+  activeCounter.currentNumber = nextNumber;
+  renderControl();
 }
 
 async function postJson(url, payload) {
@@ -304,7 +315,11 @@ async function incrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
+    if (Number.isInteger(predictedNumber)) {
+      applyLocalCalledNumber(predictedNumber);
+    }
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi tăng số:", err);
     window.alert(err.message || "Không thể tăng số.");
@@ -331,7 +346,11 @@ async function decrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
+    if (Number.isInteger(predictedNumber)) {
+      applyLocalCalledNumber(predictedNumber);
+    }
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi giảm số:", err);
     window.alert(err.message || "Không thể giảm số.");
@@ -347,6 +366,7 @@ async function playSampleThenSpeak() {
   try {
     const audioBlob = await fetchAnnouncementAudio();
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi phát loa:", err);
     const msg = err.serverMessage || "Không thể phát loa.";
@@ -354,6 +374,24 @@ async function playSampleThenSpeak() {
   } finally {
     announceButton.disabled = false;
   }
+}
+
+function prefetchNextAnnouncementAudio() {
+  const nextNumber = getPredictedAudioNumber("increment");
+  if (!Number.isInteger(nextNumber)) return;
+
+  void fetchAudioWithLocalCache({
+    url: "/api/announcement-preview",
+    payload: {
+      streamKey: activeStreamKey,
+      counterKey: activeCounterKey,
+      voice: voiceSelect.value,
+      number: nextNumber
+    },
+    cacheKey: buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, nextNumber])
+  }).catch(() => {
+    // prefetch background only
+  });
 }
 
 async function handleSetNumber() {
@@ -439,3 +477,7 @@ fetch("/api/state")
   .catch(() => {
     updateControl({ streams: {} });
   });
+
+voiceSelect.addEventListener("change", () => {
+  prefetchNextAnnouncementAudio();
+});
