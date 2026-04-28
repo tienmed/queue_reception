@@ -21,7 +21,9 @@ let activeCounterKey = "quay1";
 const AUDIO_CACHE_NAME = "queue-audio-v1";
 const AUDIO_CACHE_PREFIX = "/__audio_cache__/";
 const AUDIO_CACHE_MAX_ENTRIES = 300;
+const AUDIO_PREFETCH_THROTTLE_MS = 3000;
 const pendingAudioCacheJobs = new Map();
+const prefetchThrottle = new Map();
 
 function sanitizeCachePart(value) {
   return encodeURIComponent(String(value ?? "").trim().toLowerCase());
@@ -45,7 +47,7 @@ function getPredictedAudioNumber(actionType) {
   }
 
   if (actionType === "decrement") {
-    return Math.max(0, Number(activeStream.nextNumber || 0) - 1);
+    return Math.max(0, Number(activeCounter.currentNumber || 0) - 1);
   }
 
   return Math.max(0, Number(activeCounter.currentNumber || 0));
@@ -268,6 +270,31 @@ function updateControl(nextState) {
   }
 
   renderControl();
+  prefetchNextAnnouncementAudio();
+}
+
+function applyLocalCalledNumber(nextNumber, options = {}) {
+  const { syncStream = true } = options;
+  const activeStream = getActiveStream();
+  const activeCounter = getActiveCounter();
+  if (!activeStream || !activeCounter || !Number.isInteger(nextNumber) || nextNumber < 0) return;
+
+  if (syncStream) {
+    activeStream.nextNumber = nextNumber;
+  }
+  activeCounter.currentNumber = nextNumber;
+  renderControl();
+}
+
+function applyLocalStreamReset(nextNumber) {
+  const activeStream = getActiveStream();
+  if (!activeStream || !Number.isInteger(nextNumber) || nextNumber < 0) return;
+
+  activeStream.nextNumber = nextNumber;
+  Object.values(activeStream.counters || {}).forEach((counter) => {
+    counter.currentNumber = nextNumber;
+  });
+  renderControl();
 }
 
 async function postJson(url, payload) {
@@ -304,7 +331,11 @@ async function incrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
+    if (Number.isInteger(predictedNumber)) {
+      applyLocalCalledNumber(predictedNumber);
+    }
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi tăng số:", err);
     window.alert(err.message || "Không thể tăng số.");
@@ -331,7 +362,11 @@ async function decrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
+    if (Number.isInteger(predictedNumber)) {
+      applyLocalCalledNumber(predictedNumber, { syncStream: false });
+    }
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi giảm số:", err);
     window.alert(err.message || "Không thể giảm số.");
@@ -347,6 +382,7 @@ async function playSampleThenSpeak() {
   try {
     const audioBlob = await fetchAnnouncementAudio();
     await playSequence(audioBlob);
+    prefetchNextAnnouncementAudio();
   } catch (err) {
     console.error("Lỗi phát loa:", err);
     const msg = err.serverMessage || "Không thể phát loa.";
@@ -354,6 +390,32 @@ async function playSampleThenSpeak() {
   } finally {
     announceButton.disabled = false;
   }
+}
+
+function prefetchNextAnnouncementAudio() {
+  const nextNumber = getPredictedAudioNumber("increment");
+  if (!Number.isInteger(nextNumber)) return;
+  const cacheKey = buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, nextNumber]);
+  const now = Date.now();
+  const lastRunAt = prefetchThrottle.get(cacheKey) || 0;
+  if (now - lastRunAt < AUDIO_PREFETCH_THROTTLE_MS) {
+    return;
+  }
+  prefetchThrottle.set(cacheKey, now);
+
+  void fetchAudioWithLocalCache({
+    url: "/api/announcement-preview",
+    payload: {
+      streamKey: activeStreamKey,
+      counterKey: activeCounterKey,
+      voice: voiceSelect.value,
+      number: nextNumber,
+      allowGenerate: false
+    },
+    cacheKey
+  }).catch(() => {
+    // prefetch background only
+  });
 }
 
 async function handleSetNumber() {
@@ -369,8 +431,11 @@ async function handleSetNumber() {
     await postJson("/api/state", {
       streamKey: activeStreamKey,
       counterKey: activeCounterKey,
-      currentNumber: nextValue
+      currentNumber: nextValue,
+      voice: voiceSelect.value
     });
+    applyLocalStreamReset(nextValue);
+    prefetchNextAnnouncementAudio();
   } catch (_error) {
     window.alert("Không cập nhật được số.");
   }
@@ -439,3 +504,7 @@ fetch("/api/state")
   .catch(() => {
     updateControl({ streams: {} });
   });
+
+voiceSelect.addEventListener("change", () => {
+  prefetchNextAnnouncementAudio();
+});
