@@ -230,8 +230,10 @@ function buildStreamAnnouncementText(stream, number, counterLabel) {
   return buildAnnouncementText(stream.announcementTemplate, number, label);
 }
 
+
 async function resolveAnnouncementAudio({ stream, streamKey, counter, counterKey, voice, number, allowGenerate }) {
   let audioBuffer = await findCachedAudio(voice, streamKey, counterKey, number);
+
 
   if (audioBuffer || !allowGenerate) {
     return audioBuffer;
@@ -239,6 +241,7 @@ async function resolveAnnouncementAudio({ stream, streamKey, counter, counterKey
 
   const announcementText = buildStreamAnnouncementText(stream, number, counter.label);
   console.log(`[API] Cache miss, generating: "${announcementText}"`);
+
   audioBuffer = await generateAndCacheTts(announcementText, voice, streamKey, counterKey, number);
   return audioBuffer;
 }
@@ -247,19 +250,24 @@ async function prewarmNextAnnouncementAudio({ stream, streamKey, counter, counte
   const nextNumber = Math.max(0, Number(currentNumber || 0) + 1);
   const jobKey = `${voice}:${streamKey}:${counterKey}:${nextNumber}`;
 
+
   if (prewarmJobs.has(jobKey)) {
     return prewarmJobs.get(jobKey);
   }
 
   const prewarmJob = (async () => {
+
     const existingAudio = await findCachedAudio(voice, streamKey, counterKey, nextNumber);
+
     if (existingAudio) {
       return;
     }
 
     const nextText = buildStreamAnnouncementText(stream, nextNumber, counter.label);
     console.log(`[PREWARM] Tạo sẵn WAV cho số kế tiếp ${String(nextNumber).padStart(3, "0")}`);
+
     await generateAndCacheTts(nextText, voice, streamKey, counterKey, nextNumber);
+
   })();
 
   prewarmJobs.set(jobKey, prewarmJob);
@@ -474,7 +482,9 @@ app.post("/api/increment-and-announce", async (req, res) => {
       stream,
       streamKey,
       counter,
+
       counterKey,
+
       voice,
       number: stream.nextNumber,
       allowGenerate: true
@@ -488,7 +498,9 @@ app.post("/api/increment-and-announce", async (req, res) => {
       stream,
       streamKey,
       counter,
+
       counterKey,
+
       voice,
       currentNumber: stream.nextNumber
     }).catch((error) => {
