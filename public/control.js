@@ -286,6 +286,17 @@ function applyLocalCalledNumber(nextNumber, options = {}) {
   renderControl();
 }
 
+function applyLocalStreamReset(nextNumber) {
+  const activeStream = getActiveStream();
+  if (!activeStream || !Number.isInteger(nextNumber) || nextNumber < 0) return;
+
+  activeStream.nextNumber = nextNumber;
+  Object.values(activeStream.counters || {}).forEach((counter) => {
+    counter.currentNumber = nextNumber;
+  });
+  renderControl();
+}
+
 async function postJson(url, payload) {
   const response = await fetch(url, {
     method: "POST",
@@ -423,7 +434,7 @@ async function handleSetNumber() {
       currentNumber: nextValue,
       voice: voiceSelect.value
     });
-    applyLocalCalledNumber(nextValue);
+    applyLocalStreamReset(nextValue);
     prefetchNextAnnouncementAudio();
   } catch (_error) {
     window.alert("Không cập nhật được số.");
