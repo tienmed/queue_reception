@@ -86,15 +86,15 @@ async function rememberAudioBlob(cacheKey, audioBlob) {
   await enforceAudioCacheLimit(cacheStorage);
 }
 
-async function fetchAudioWithLocalCache({ url, payload, cacheKey }) {
-  if (cacheKey) {
+async function fetchAudioWithLocalCache({ url, payload, cacheKey, skipCacheRead = false }) {
+  if (cacheKey && !skipCacheRead) {
     const cachedBlob = await getCachedAudioBlob(cacheKey);
     if (cachedBlob) {
       return { audioBlob: cachedBlob, metadata: null };
     }
   }
 
-  if (cacheKey && pendingAudioCacheJobs.has(cacheKey)) {
+  if (cacheKey && !skipCacheRead && pendingAudioCacheJobs.has(cacheKey)) {
     return pendingAudioCacheJobs.get(cacheKey);
   }
 
@@ -334,7 +334,8 @@ async function incrementNumber() {
       },
       cacheKey: predictedNumber === null
         ? null
-        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
+        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber]),
+      skipCacheRead: true
     });
     if (Number.isInteger(metadata?.number)) {
       applyLocalCalledNumber(metadata.number);
@@ -367,7 +368,8 @@ async function decrementNumber() {
       },
       cacheKey: predictedNumber === null
         ? null
-        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
+        : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber]),
+      skipCacheRead: true
     });
     if (Number.isInteger(metadata?.number)) {
       applyLocalCalledNumber(metadata.number, { syncStream: false });
