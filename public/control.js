@@ -90,7 +90,7 @@ async function fetchAudioWithLocalCache({ url, payload, cacheKey }) {
   if (cacheKey) {
     const cachedBlob = await getCachedAudioBlob(cacheKey);
     if (cachedBlob) {
-      return cachedBlob;
+      return { audioBlob: cachedBlob, metadata: null };
     }
   }
 
@@ -119,10 +119,15 @@ async function fetchAudioWithLocalCache({ url, payload, cacheKey }) {
     }
 
     const audioBlob = await response.blob();
+    const metadata = {
+      streamKey: response.headers.get("X-Queue-Stream-Key"),
+      counterKey: response.headers.get("X-Queue-Counter-Key"),
+      number: Number.parseInt(response.headers.get("X-Queue-Number"), 10)
+    };
     if (cacheKey) {
       await rememberAudioBlob(cacheKey, audioBlob);
     }
-    return audioBlob;
+    return { audioBlob, metadata };
   })();
 
   if (cacheKey) {
@@ -320,7 +325,7 @@ async function incrementNumber() {
 
   try {
     const predictedNumber = getPredictedAudioNumber("increment");
-    const audioBlob = await fetchAudioWithLocalCache({
+    const { audioBlob, metadata } = await fetchAudioWithLocalCache({
       url: "/api/increment-and-announce",
       payload: {
         streamKey: activeStreamKey,
@@ -331,7 +336,9 @@ async function incrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
-    if (Number.isInteger(predictedNumber)) {
+    if (Number.isInteger(metadata?.number)) {
+      applyLocalCalledNumber(metadata.number);
+    } else if (Number.isInteger(predictedNumber)) {
       applyLocalCalledNumber(predictedNumber);
     }
     await playSequence(audioBlob);
@@ -351,7 +358,7 @@ async function decrementNumber() {
 
   try {
     const predictedNumber = getPredictedAudioNumber("decrement");
-    const audioBlob = await fetchAudioWithLocalCache({
+    const { audioBlob, metadata } = await fetchAudioWithLocalCache({
       url: "/api/decrement-and-announce",
       payload: {
         streamKey: activeStreamKey,
@@ -362,7 +369,9 @@ async function decrementNumber() {
         ? null
         : buildAudioCacheKey(["stream", voiceSelect.value, activeStreamKey, activeCounterKey, predictedNumber])
     });
-    if (Number.isInteger(predictedNumber)) {
+    if (Number.isInteger(metadata?.number)) {
+      applyLocalCalledNumber(metadata.number, { syncStream: false });
+    } else if (Number.isInteger(predictedNumber)) {
       applyLocalCalledNumber(predictedNumber, { syncStream: false });
     }
     await playSequence(audioBlob);
@@ -380,7 +389,7 @@ async function playSampleThenSpeak() {
   announceButton.disabled = true;
 
   try {
-    const audioBlob = await fetchAnnouncementAudio();
+    const { audioBlob } = await fetchAnnouncementAudio();
     await playSequence(audioBlob);
     prefetchNextAnnouncementAudio();
   } catch (err) {
@@ -451,7 +460,7 @@ async function announceCustomText() {
   customAnnounceButton.disabled = true;
   try {
     const trimmedText = text.trim();
-    const audioBlob = await fetchAudioWithLocalCache({
+    const { audioBlob } = await fetchAudioWithLocalCache({
       url: "/api/announce-custom",
       payload: {
         text: trimmedText,
