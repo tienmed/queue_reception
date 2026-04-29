@@ -151,7 +151,7 @@ const pendingTtsJobs = new Map();
 const prewarmJobs = new Map();
 const TTS_CACHE_LIMIT = 100;
 let ensureTtsCacheDirPromise = null;
-let callLogs = [];
+let callLogsByStream = {};
 let callLogDateKey = new Date().toISOString().slice(0, 10);
 
 function getDateKey() {
@@ -161,21 +161,43 @@ function getDateKey() {
 function ensureDailyLogWindow() {
   const today = getDateKey();
   if (today !== callLogDateKey) {
-    callLogs = [];
+    callLogsByStream = {};
     callLogDateKey = today;
   }
 }
 
+function getCounterLog(streamKey, counterKey) {
+  if (!callLogsByStream[streamKey]) {
+    callLogsByStream[streamKey] = {};
+  }
+
+  if (!callLogsByStream[streamKey][counterKey]) {
+    callLogsByStream[streamKey][counterKey] = [];
+  }
+
+  return callLogsByStream[streamKey][counterKey];
+}
+
 function addCallLog(entry) {
   ensureDailyLogWindow();
-  callLogs.unshift({
+  const { streamKey, counterKey } = entry;
+  const targetLog = getCounterLog(streamKey, counterKey);
+
+  targetLog.unshift({
     id: crypto.randomUUID(),
     calledAt: new Date().toISOString(),
     ...entry
   });
 
-  if (callLogs.length > 1000) {
-    callLogs.length = 1000;
+  if (targetLog.length > 1000) {
+    targetLog.length = 1000;
+  }
+}
+
+function clearStreamLogs(streamKey) {
+  ensureDailyLogWindow();
+  if (callLogsByStream[streamKey]) {
+    callLogsByStream[streamKey] = {};
   }
 }
 
@@ -404,11 +426,32 @@ app.get("/api/state", (_req, res) => {
   res.json(queueState);
 });
 
-app.get("/api/logs", (_req, res) => {
+app.get("/api/logs", (req, res) => {
   ensureDailyLogWindow();
+  const { streamKey, counterKey } = req.query;
+
+  if (typeof streamKey === "string" && typeof counterKey === "string") {
+    res.json({
+      date: callLogDateKey,
+      streamKey,
+      counterKey,
+      logs: getCounterLog(streamKey, counterKey)
+    });
+    return;
+  }
+
+  if (typeof streamKey === "string") {
+    res.json({
+      date: callLogDateKey,
+      streamKey,
+      logsByCounter: callLogsByStream[streamKey] || {}
+    });
+    return;
+  }
+
   res.json({
     date: callLogDateKey,
-    logs: callLogs
+    logsByStream: callLogsByStream
   });
 });
 
@@ -482,6 +525,9 @@ app.post("/api/increment-and-announce", async (req, res) => {
 
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Queue-Stream-Key", streamKey);
+    res.setHeader("X-Queue-Counter-Key", counterKey);
+    res.setHeader("X-Queue-Number", String(stream.nextNumber));
     res.send(audioBuffer);
 
     void prewarmNextAnnouncementAudio({
@@ -545,6 +591,9 @@ app.post("/api/decrement-and-announce", async (req, res) => {
 
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Queue-Stream-Key", streamKey);
+    res.setHeader("X-Queue-Counter-Key", counterKey);
+    res.setHeader("X-Queue-Number", String(counter.currentNumber));
     res.send(audioBuffer);
 
     void prewarmNextAnnouncementAudio({
@@ -582,6 +631,7 @@ app.post("/api/state", (req, res) => {
   }
 
   stream.nextNumber = nextNumber;
+  clearStreamLogs(streamKey);
   // Reset theo toàn bộ luồng: đồng bộ số hiện tại cho tất cả quầy trong stream
   Object.values(stream.counters).forEach((streamCounter) => {
     streamCounter.currentNumber = nextNumber;
@@ -641,6 +691,9 @@ app.post("/api/announce", async (req, res) => {
 
     res.setHeader("Content-Type", "audio/wav");
     res.setHeader("Cache-Control", "no-store");
+    res.setHeader("X-Queue-Stream-Key", streamKey);
+    res.setHeader("X-Queue-Counter-Key", counterKey);
+    res.setHeader("X-Queue-Number", String(counter.currentNumber));
     res.send(audioBuffer);
 
     void prewarmNextAnnouncementAudio({
