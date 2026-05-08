@@ -102,17 +102,23 @@ function renderStreamSelector() {
   // Xử lý sự kiện khi người dùng chọn/bỏ chọn quầy
   streamSelectorElement.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
-      const checkedInputs = Array.from(streamSelectorElement.querySelectorAll('input[type="checkbox"]:checked'));
+      let checkedInputs = Array.from(streamSelectorElement.querySelectorAll('input[type="checkbox"]:checked'));
 
+      // Không cho phép bỏ chọn hết tất cả
       if (checkedInputs.length === 0) {
         checkbox.checked = true;
         return;
       }
 
-      // Nếu vượt quá giới hạn cột, bỏ chọn cái cũ nhất (hoặc ngăn cản)
+      // Nếu vượt quá giới hạn cột, bỏ chọn cái cũ nhất để nhường chỗ cho cái mới
       if (checkedInputs.length > visibleLimit) {
-        checkbox.checked = false;
-        return;
+        // Tìm checkbox cũ nhất (không phải checkbox vừa được chọn) và bỏ chọn nó
+        const oldestChecked = checkedInputs.find(input => input !== checkbox);
+        if (oldestChecked) {
+          oldestChecked.checked = false;
+        }
+        // Cập nhật lại danh sách đã chọn
+        checkedInputs = Array.from(streamSelectorElement.querySelectorAll('input[type="checkbox"]:checked'));
       }
 
       selectedSlots = checkedInputs.map(input => ({

@@ -484,7 +484,7 @@ const announceStartButton = document.getElementById("announceStartButton");
 async function announceStart() {
   announceStartButton.disabled = true;
   try {
-    const audioBlob = await fetchAudioWithLocalCache({
+    const { audioBlob } = await fetchAudioWithLocalCache({
       url: "/api/announce-start",
       payload: {
         voice: voiceSelect.value
