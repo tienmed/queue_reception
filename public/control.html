@@ -64,47 +64,52 @@
           <div class="tab-list" id="counterTabs"></div>
         </div>
 
-        <div class="config-group">
-          <h3><i data-lucide="mic"></i> GIỌNG ĐỌC</h3>
-          <div class="select-wrapper">
-            <select id="voiceSelect">
-              <option value="bich_ngoc">Bích Ngọc (Nữ - Bắc)</option>
-              <option value="pham_tuyen">Phạm Tuyên (Nam - Bắc)</option>
-              <option value="thuc_doan">Thục Đoan (Nữ - Nam)</option>
-              <option value="xuan_vinh">Xuân Vĩnh (Nam - Nam)</option>
-            </select>
+        <div class="config-row">
+          <div class="config-group">
+            <h3><i data-lucide="mic"></i> GIỌNG ĐỌC</h3>
+            <div class="select-wrapper">
+              <select id="voiceSelect">
+                <option value="bich_ngoc">Bích Ngọc (Bắc)</option>
+                <option value="pham_tuyen">Phạm Tuyên (Bắc)</option>
+                <option value="thuc_doan">Thục Đoan (Nam)</option>
+                <option value="xuan_vinh">Xuân Vĩnh (Nam)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <h3><i data-lucide="settings-2"></i> ĐẶT LẠI SỐ</h3>
+            <div class="manual-input">
+              <input type="number" id="setNumberInput" min="0" value="0" />
+              <button id="setNumberBtn" class="btn-accent-sm">CẬP NHẬT</button>
+            </div>
           </div>
         </div>
 
-        <div class="config-group">
-          <h3><i data-lucide="settings-2"></i> ĐẶT LẠI SỐ</h3>
-          <div class="manual-input">
-            <input type="number" id="setNumberInput" min="0" value="0" />
-            <button id="setNumberBtn">CẬP NHẬT</button>
+        <div class="config-row">
+          <div class="config-group system-announce">
+            <h3><i data-lucide="bell"></i> HỆ THỐNG</h3>
+            <button class="btn-secondary btn-full btn-compact" id="announceStartButton">
+              <i data-lucide="play-circle"></i>
+              <span>ĐẦU CA</span>
+            </button>
           </div>
-        </div>
 
-        <div class="config-group system-announce">
-          <h3><i data-lucide="bell"></i> THÔNG BÁO HỆ THỐNG</h3>
-          <button class="btn-secondary btn-full" id="announceStartButton">
-            <i data-lucide="play-circle"></i>
-            <span>PHÁT THÔNG BÁO ĐẦU CA</span>
-          </button>
+          <div class="config-group danger-zone">
+            <h3><i data-lucide="alert-triangle"></i> QUẢN TRỊ</h3>
+            <button class="btn-secondary btn-full btn-danger btn-compact" id="resetSystemBtn">
+              <i data-lucide="refresh-cw"></i>
+              <span>RESET</span>
+            </button>
+          </div>
         </div>
 
         <div class="config-group custom-announce">
           <h3><i data-lucide="message-square"></i> THÔNG BÁO TÙY CHỈNH</h3>
           <div class="custom-input">
-            <textarea id="customText" rows="2" placeholder="Nhập nội dung thông báo..."></textarea>
-            <button class="btn-custom" id="customAnnounceButton">Phát Thông Báo</button>
+            <textarea id="customText" rows="1" placeholder="Nhập nội dung..."></textarea>
+            <button class="btn-custom btn-compact" id="customAnnounceButton">Phát Thông Báo</button>
           </div>
-        </div>
-        <div class="config-group danger-zone">
-          <h3><i data-lucide="alert-triangle"></i> QUẢN TRỊ</h3>
-          <button class="btn-secondary btn-full btn-danger" id="resetSystemBtn">
-            <i data-lucide="refresh-cw"></i>
-            <span>RESET TOÀN BỘ HỆ THỐNG</span>
-          </button>
         </div>
       </div>
 

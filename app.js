@@ -134,7 +134,7 @@ function readState() {
 let pendingStateWrite = Promise.resolve();
 
 // Ghi trạng thái vào file (xếp hàng async để tránh block event-loop)
-// Ghi trạng thái vào file an toàn (Atomic Write)
+// [Agent: Qwen3] - Atomic Write Mechanism
 function writeState(nextState) {
   ensureStateFile();
   const serializedState = JSON.stringify(nextState, null, 2);

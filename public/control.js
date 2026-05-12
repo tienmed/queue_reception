@@ -20,6 +20,7 @@ let activeStreamKey = "bhyt";
 let activeCounterKey = "quay1";
 const AUDIO_CACHE_NAME = "queue-audio-v1";
 const AUDIO_CACHE_PREFIX = "/__audio_cache__/";
+/* [Agent: Qwen3-Optimized] - Persistence Cache Engine */
 const AUDIO_CACHE_MAX_ENTRIES = 300;
 const AUDIO_PREFETCH_THROTTLE_MS = 3000;
 const pendingAudioCacheJobs = new Map();
