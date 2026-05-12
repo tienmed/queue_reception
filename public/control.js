@@ -254,9 +254,16 @@ function renderControl() {
     return;
   }
 
+  const newNumber = formatNumber(activeCounter?.currentNumber || 0);
+  if (currentNumberElement.textContent !== newNumber) {
+    currentNumberElement.textContent = newNumber;
+    currentNumberElement.classList.remove("updating");
+    void currentNumberElement.offsetWidth; // Trigger reflow
+    currentNumberElement.classList.add("updating");
+  }
+
   activeStreamLabelElement.textContent = activeStream.label;
   activeCounterLabelElement.textContent = activeCounter?.label || "Quầy";
-  currentNumberElement.textContent = formatNumber(activeCounter?.currentNumber || 0);
   setNumberInput.value = String(activeStream.nextNumber || 0);
 
   renderStreamTabs();
@@ -506,6 +513,24 @@ announceButton.addEventListener("click", playSampleThenSpeak);
 setNumberBtn.addEventListener("click", handleSetNumber);
 customAnnounceButton.addEventListener("click", announceCustomText);
 announceStartButton.addEventListener("click", announceStart);
+
+const resetSystemBtn = document.getElementById("resetSystemBtn");
+async function resetSystem() {
+  const confirmed = window.confirm("BẠN CÓ CHẮC CHẮN MUỐN RESET TOÀN BỘ HỆ THỐNG?\nHành động này sẽ đưa tất cả số về 0 và xóa sạch lịch sử gọi số.");
+  if (!confirmed) return;
+
+  resetSystemBtn.disabled = true;
+  try {
+    await postJson("/api/reset", {});
+    window.alert("Hệ thống đã được reset về mặc định.");
+  } catch (error) {
+    console.error("Lỗi reset hệ thống:", error);
+    window.alert("Không thể reset hệ thống.");
+  } finally {
+    resetSystemBtn.disabled = false;
+  }
+}
+resetSystemBtn.addEventListener("click", resetSystem);
 
 controlSocket.on("queue:update", updateControl);
 

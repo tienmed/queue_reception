@@ -15,6 +15,7 @@ const fsp = fs.promises;
 const PORT = process.env.PORT || 3000;
 const dataDir = path.join(__dirname, "data");
 const stateFile = path.join(dataDir, "state.json");
+const stateTempFile = path.join(dataDir, "state.json.tmp");
 const ttsCacheDir = path.join(__dirname, "data", "tts-cache");
 const execFileAsync = promisify(execFile);
 
@@ -133,13 +134,21 @@ function readState() {
 let pendingStateWrite = Promise.resolve();
 
 // Ghi trạng thái vào file (xếp hàng async để tránh block event-loop)
+// Ghi trạng thái vào file an toàn (Atomic Write)
 function writeState(nextState) {
   ensureStateFile();
   const serializedState = JSON.stringify(nextState, null, 2);
   pendingStateWrite = pendingStateWrite
-    .then(() => fsp.writeFile(stateFile, serializedState))
+    .then(async () => {
+      try {
+        await fsp.writeFile(stateTempFile, serializedState);
+        await fsp.rename(stateTempFile, stateFile);
+      } catch (err) {
+        console.error("[STATE_WRITE_FATAL] Lỗi ghi file vật lý:", err);
+      }
+    })
     .catch((error) => {
-      console.error("[STATE_WRITE_ERROR] Không thể ghi state:", error);
+      console.error("[STATE_WRITE_ERROR] Lỗi hàng đợi ghi state:", error);
     });
 }
 
@@ -404,6 +413,20 @@ async function generateAndCacheTts(text, voiceId, streamKey, counterKey, number)
 }
 
 app.use(express.json());
+
+// Middleware Bảo mật: Kiểm tra tính hợp lệ của Key đầu vào
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.body) {
+    const { streamKey, counterKey } = req.body;
+    const isValid = (k) => !k || (typeof k === "string" && !k.includes("__") && k.length < 50);
+    
+    if (!isValid(streamKey) || !isValid(counterKey)) {
+      return res.status(400).json({ error: "Tham số không hợp lệ hoặc tiềm ẩn rủi ro bảo mật." });
+    }
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
 // Chuyển hướng trang chủ sang viewer
@@ -424,6 +447,31 @@ app.get("/control", (_req, res) => {
 // API lấy trạng thái hiện tại
 app.get("/api/state", (_req, res) => {
   res.json(queueState);
+});
+
+// API Reset toàn bộ hệ thống về 0 và xóa logs
+app.post("/api/reset", (req, res) => {
+  console.log("[API] Reset toàn bộ hệ thống.");
+  
+  // Reset số về 0 cho tất cả stream và counter
+  Object.keys(queueState.streams).forEach(streamKey => {
+    const stream = queueState.streams[streamKey];
+    stream.nextNumber = 0;
+    if (stream.counters) {
+      Object.keys(stream.counters).forEach(counterKey => {
+        stream.counters[counterKey].currentNumber = 0;
+        stream.counters[counterKey].lastCalledAt = null;
+      });
+    }
+  });
+
+  // Xóa sạch logs
+  callLogsByStream = {};
+  
+  writeState(queueState);
+  broadcastState();
+  
+  res.json({ message: "Đã reset hệ thống thành công.", state: queueState });
 });
 
 app.get("/api/logs", (req, res) => {

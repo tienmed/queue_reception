@@ -31,7 +31,18 @@
   --radius-sm: 8px;
 
   --shadow-premium: 0 20px 50px rgba(0, 0, 0, 0.3);
-  --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes numberPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); filter: brightness(1.2); }
+  100% { transform: scale(1); }
 }
 
 * {
@@ -176,6 +187,11 @@ body {
   background-clip: text;
   -webkit-text-fill-color: transparent;
   filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.2));
+  transition: var(--transition-smooth);
+}
+
+.big-number.updating {
+  animation: numberPulse 0.4s ease-out;
 }
 
 .emulator-footer {
@@ -270,6 +286,16 @@ body {
   background: rgba(255, 255, 255, 0.03);
   color: white;
   border-color: var(--text-muted);
+}
+
+.btn-danger {
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.2) !important;
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border-color: #ef4444 !important;
 }
 
 /* ============================================
@@ -602,14 +628,14 @@ button:disabled {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: white;
-  border-radius: 16px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
   text-align: center;
+  padding: 40px;
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  animation: slideUpFade 0.8s cubic-bezier(0.23, 1, 0.32, 1);
   position: relative;
   overflow: hidden;
-  padding: 20px;
 }
 
 /* Dòng phụ "Khu Tiếp Nhận" */
