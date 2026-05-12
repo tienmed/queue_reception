@@ -1,36 +1,25 @@
 :root {
-  /* High Contrast Palette (for Viewer) */
-  --viewer-primary: #15803d;
-  --viewer-secondary: #0891b2;
-  --viewer-bg: #ffffff;
-  --viewer-text: #000000;
-
-  /* Premium Palette - Indigo & Slate */
+  /* [Agent: Qwen3-Optimized] - Ultra Premium Palette */
+  --bg-main: #0b0e14;
+  --bg-mesh: radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+             radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.15) 0px, transparent 50%);
   --accent: #6366f1;
-  /* Indigo 500 */
-  --accent-hover: #4f46e5;
-  /* Indigo 600 */
-  --accent-soft: rgba(99, 102, 241, 0.1);
-  --success: #10b981;
-  --error: #ef4444;
-
-  --bg-main: #0f172a;
-  /* Slate 900 */
-  --card-bg: rgba(30, 41, 59, 0.7);
-  /* Slate 800 with transparency */
+  --accent-glow: rgba(99, 102, 241, 0.5);
+  --sidebar-bg: rgba(15, 23, 42, 0.85);
+  --card-bg: rgba(30, 41, 59, 0.5);
   --card-border: rgba(255, 255, 255, 0.08);
-  --sidebar-bg: #1e293b;
-
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  --success: #10b981;
+  --error: #f43f5e;
 
   --radius-xl: 32px;
   --radius-lg: 20px;
   --radius-md: 12px;
   --radius-sm: 8px;
 
-  /* [Agent: Qwen3-Optimized] - High-End Design System */
+  /* High-End Design System */
   --shadow-premium: 0 20px 50px rgba(0, 0, 0, 0.3);
   --transition-smooth: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
 }
@@ -56,16 +45,16 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   color: var(--text-primary);
   background: var(--bg-main);
+  background-image: var(--bg-mesh);
   height: 100vh;
   overflow: hidden;
+  line-height: 1.5;
 }
 
 .control-layout {
   display: flex;
   height: 100vh;
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.05) 0%, transparent 50%);
+  background: transparent;
 }
 
 /* ============================================
@@ -177,17 +166,17 @@ body {
 }
 
 .big-number {
-  font-size: 240px;
-  font-weight: 900;
+  font-size: 200px;
+  font-weight: 950;
   color: white;
   line-height: 1;
   letter-spacing: -0.05em;
   font-family: 'Inter', sans-serif;
-  background: linear-gradient(180deg, #fff 40%, rgba(255, 255, 255, 0.4) 100%);
+  background: linear-gradient(180deg, #fff 40%, rgba(255, 255, 255, 0.5) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.2));
+  filter: drop-shadow(0 0 50px rgba(99, 102, 241, 0.4));
   transition: var(--transition-smooth);
 }
 
@@ -305,6 +294,8 @@ body {
 .control-sidebar {
   width: 380px;
   background: var(--sidebar-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-left: 1px solid var(--card-border);
   display: flex;
   flex-direction: column;
@@ -430,19 +421,37 @@ select {
 .manual-input input {
   width: 100%;
   padding: 10px;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--card-border);
   color: var(--accent);
   border-radius: var(--radius-sm);
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 800;
+  font-size: 16px;
+  text-align: center;
   margin-bottom: 8px;
 }
 
-.manual-input button {
-  width: 100%;
-  padding: 8px;
-  font-size: 11px;
+.btn-accent-sm {
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 800;
+  padding: 10px !important;
+  font-size: 11px !important;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-accent-sm i {
+  width: 14px;
+  height: 14px;
 }
 
 .custom-input textarea {
